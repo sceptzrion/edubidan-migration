@@ -295,3 +295,384 @@ export async function getModuleById(id: number) {
 
   return mapModuleDetail(module);
 }
+
+function normalizeOptionalString(value: unknown) {
+  if (typeof value !== "string") return undefined;
+
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeRequiredString(value: unknown) {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeEstimatedMinutes(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const estimatedMinutes = Number(value);
+
+  if (!Number.isInteger(estimatedMinutes) || estimatedMinutes <= 0) {
+    return null;
+  }
+
+  return estimatedMinutes;
+}
+
+function normalizeObjectives(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function normalizeModuleStatus(value: unknown) {
+  if (value === ModuleStatus.PUBLIK) return ModuleStatus.PUBLIK;
+  if (value === ModuleStatus.DRAFT) return ModuleStatus.DRAFT;
+
+  return null;
+}
+
+export type CreateModuleResult =
+  | {
+      success: true;
+      module: Awaited<ReturnType<typeof getModuleById>>;
+      error: null;
+    }
+  | {
+      success: false;
+      module: null;
+      error:
+        | "DOSEN_PROFILE_ID_REQUIRED"
+        | "DOSEN_PROFILE_NOT_FOUND"
+        | "TITLE_REQUIRED"
+        | "ACCESS_CODE_REQUIRED"
+        | "ACCESS_CODE_ALREADY_USED"
+        | "ESTIMATED_MINUTES_INVALID";
+    };
+
+export async function createModule(params: {
+  dosenProfileId: unknown;
+  title: unknown;
+  description?: unknown;
+  bannerUrl?: unknown;
+  accessCode: unknown;
+  estimatedMinutes?: unknown;
+  objectives?: unknown;
+}): Promise<CreateModuleResult> {
+  const dosenProfileId = Number(params.dosenProfileId);
+  const title = normalizeRequiredString(params.title);
+  const description = normalizeOptionalString(params.description);
+  const bannerUrl = normalizeOptionalString(params.bannerUrl);
+  const accessCode = normalizeRequiredString(params.accessCode)?.toUpperCase();
+  const estimatedMinutes =
+    params.estimatedMinutes === undefined
+      ? null
+      : normalizeEstimatedMinutes(params.estimatedMinutes);
+  const objectives = normalizeObjectives(params.objectives);
+
+  if (!Number.isInteger(dosenProfileId) || dosenProfileId <= 0) {
+    return {
+      success: false,
+      module: null,
+      error: "DOSEN_PROFILE_ID_REQUIRED",
+    };
+  }
+
+  const dosenProfile = await prisma.dosenProfile.findUnique({
+    where: {
+      id: dosenProfileId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!dosenProfile) {
+    return {
+      success: false,
+      module: null,
+      error: "DOSEN_PROFILE_NOT_FOUND",
+    };
+  }
+
+  if (!title) {
+    return {
+      success: false,
+      module: null,
+      error: "TITLE_REQUIRED",
+    };
+  }
+
+  if (!accessCode) {
+    return {
+      success: false,
+      module: null,
+      error: "ACCESS_CODE_REQUIRED",
+    };
+  }
+
+  if (params.estimatedMinutes !== undefined && estimatedMinutes === null) {
+    return {
+      success: false,
+      module: null,
+      error: "ESTIMATED_MINUTES_INVALID",
+    };
+  }
+
+  const existingAccessCode = await prisma.module.findUnique({
+    where: {
+      accessCode,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingAccessCode) {
+    return {
+      success: false,
+      module: null,
+      error: "ACCESS_CODE_ALREADY_USED",
+    };
+  }
+
+  const createdModule = await prisma.module.create({
+    data: {
+      dosenProfileId,
+      title,
+      description,
+      bannerUrl,
+      accessCode,
+      status: ModuleStatus.DRAFT,
+      estimatedMinutes,
+      objectives: {
+        create: objectives.map((text, index) => ({
+          text,
+          order: index + 1,
+        })),
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const module = await getModuleById(createdModule.id);
+
+  return {
+    success: true,
+    module,
+    error: null,
+  };
+}
+
+export type UpdateModuleResult =
+  | {
+      success: true;
+      module: Awaited<ReturnType<typeof getModuleById>>;
+      error: null;
+    }
+  | {
+      success: false;
+      module: null;
+      error:
+        | "MODULE_NOT_FOUND"
+        | "TITLE_EMPTY"
+        | "ACCESS_CODE_EMPTY"
+        | "ACCESS_CODE_ALREADY_USED"
+        | "ESTIMATED_MINUTES_INVALID";
+    };
+
+export async function updateModule(params: {
+  id: number;
+  title?: unknown;
+  description?: unknown;
+  bannerUrl?: unknown;
+  accessCode?: unknown;
+  estimatedMinutes?: unknown;
+  objectives?: unknown;
+}): Promise<UpdateModuleResult> {
+  const existingModule = await prisma.module.findUnique({
+    where: {
+      id: params.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existingModule) {
+    return {
+      success: false,
+      module: null,
+      error: "MODULE_NOT_FOUND",
+    };
+  }
+
+  const data: Prisma.ModuleUpdateInput = {};
+
+  if (params.title !== undefined) {
+    const title = normalizeRequiredString(params.title);
+
+    if (!title) {
+      return {
+        success: false,
+        module: null,
+        error: "TITLE_EMPTY",
+      };
+    }
+
+    data.title = title;
+  }
+
+  if (params.description !== undefined) {
+    data.description = normalizeOptionalString(params.description);
+  }
+
+  if (params.bannerUrl !== undefined) {
+    data.bannerUrl = normalizeOptionalString(params.bannerUrl);
+  }
+
+  if (params.accessCode !== undefined) {
+    const accessCode = normalizeRequiredString(params.accessCode)?.toUpperCase();
+
+    if (!accessCode) {
+      return {
+        success: false,
+        module: null,
+        error: "ACCESS_CODE_EMPTY",
+      };
+    }
+
+    const duplicateAccessCode = await prisma.module.findUnique({
+      where: {
+        accessCode,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (duplicateAccessCode && duplicateAccessCode.id !== params.id) {
+      return {
+        success: false,
+        module: null,
+        error: "ACCESS_CODE_ALREADY_USED",
+      };
+    }
+
+    data.accessCode = accessCode;
+  }
+
+  if (params.estimatedMinutes !== undefined) {
+    const estimatedMinutes = normalizeEstimatedMinutes(params.estimatedMinutes);
+
+    if (estimatedMinutes === null) {
+      return {
+        success: false,
+        module: null,
+        error: "ESTIMATED_MINUTES_INVALID",
+      };
+    }
+
+    data.estimatedMinutes = estimatedMinutes;
+  }
+
+  if (params.objectives !== undefined) {
+    const objectives = normalizeObjectives(params.objectives);
+
+    data.objectives = {
+      deleteMany: {},
+      create: objectives.map((text, index) => ({
+        text,
+        order: index + 1,
+      })),
+    };
+  }
+
+  await prisma.module.update({
+    where: {
+      id: params.id,
+    },
+    data,
+  });
+
+  const module = await getModuleById(params.id);
+
+  return {
+    success: true,
+    module,
+    error: null,
+  };
+}
+
+export type UpdateModulePublishStatusResult =
+  | {
+      success: true;
+      module: Awaited<ReturnType<typeof getModuleById>>;
+      error: null;
+    }
+  | {
+      success: false;
+      module: null;
+      error: "MODULE_NOT_FOUND" | "STATUS_INVALID";
+    };
+
+export async function updateModulePublishStatus(params: {
+  id: number;
+  status: unknown;
+}): Promise<UpdateModulePublishStatusResult> {
+  const status = normalizeModuleStatus(params.status);
+
+  if (!status) {
+    return {
+      success: false,
+      module: null,
+      error: "STATUS_INVALID",
+    };
+  }
+
+  const existingModule = await prisma.module.findUnique({
+    where: {
+      id: params.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existingModule) {
+    return {
+      success: false,
+      module: null,
+      error: "MODULE_NOT_FOUND",
+    };
+  }
+
+  await prisma.module.update({
+    where: {
+      id: params.id,
+    },
+    data: {
+      status,
+    },
+  });
+
+  const module = await getModuleById(params.id);
+
+  return {
+    success: true,
+    module,
+    error: null,
+  };
+}
