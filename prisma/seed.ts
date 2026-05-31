@@ -725,11 +725,11 @@ async function main() {
   const publicModules = [moduleKehamilan, moduleBayi, moduleMenyusui];
 
   for (const student of activeStudents) {
-    for (const module of publicModules) {
+    for (const publicModule of publicModules) {
       await prisma.enrollment.create({
         data: {
           userId: student.id,
-          moduleId: module.id,
+          moduleId: publicModule.id,
         },
       });
     }
