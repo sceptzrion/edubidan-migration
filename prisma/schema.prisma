@@ -84,7 +84,7 @@ model User {
   lessonProgress  LessonProgress[]
   notifPreference NotifPreference?
   
-  // 👇 TAMBAHKAN BARIS INI DI SINI 👇
+  // Relasi aktivitas
   activityLogs    ActivityLog[] 
 
   @@index([email])
@@ -377,7 +377,7 @@ model Notification {
 }
 
 // =============================================================================
-// PREFERENSI NOTIFIKASI MAHASISWA
+// PREFERENSI NOTIFIKASI
 // =============================================================================
 
 model NotifPreference {
