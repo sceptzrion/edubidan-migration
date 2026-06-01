@@ -6,28 +6,13 @@ import { Loader2, Mail } from "lucide-react";
 
 import { AuthShell } from "@/components/auth/shared/AuthShell";
 import { PasswordInput } from "@/components/auth/shared/PasswordInput";
+import { setStoredUser, type StoredUser } from "@/lib/auth/client-auth";
 
 type LoginApiResponse = {
   success: boolean;
   message: string;
   data: {
-    user: {
-      id: number;
-      name: string;
-      email: string;
-      role: "ADMIN" | "DOSEN" | "MAHASISWA";
-      avatarUrl: string | null;
-      phoneNumber: string | null;
-      isActive: boolean;
-      mahasiswaProfile?: {
-        id: number;
-        npm: string;
-      } | null;
-      dosenProfile?: {
-        id: number;
-        nidnNip: string;
-      } | null;
-    };
+    user: StoredUser;
     redirectTo: string;
   } | null;
 };
@@ -93,9 +78,7 @@ export function LoginForm() {
         return;
       }
 
-      const storage = remember ? localStorage : sessionStorage;
-
-      storage.setItem("edubidan-user", JSON.stringify(result.data.user));
+      setStoredUser(result.data.user, remember);
 
       router.push(result.data.redirectTo);
       router.refresh();
