@@ -98,9 +98,8 @@ export function DeleteUserConfirmModal({
           </div>
 
           <p className="text-xs font-medium leading-relaxed text-muted-foreground sm:text-sm">
-            Untuk saat ini endpoint hapus permanen belum diaktifkan. Tombol ini
-            disiapkan agar alur UI sudah sesuai: nonaktifkan akun terlebih
-            dahulu, lalu hapus permanen bila benar-benar diperlukan.
+            Data pengguna akan dihapus permanen dari sistem. Pastikan akun sudah
+            dinonaktifkan dan tidak lagi diperlukan sebelum melanjutkan aksi ini.
           </p>
         </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 
 import { DeleteUserConfirmModal } from "@/components/dashboard/admin/users/DeleteUserConfirmModal";
@@ -9,6 +9,7 @@ import { UserFormModal } from "@/components/dashboard/admin/users/UserFormModal"
 import { AdminUsersHeader } from "@/components/dashboard/admin/users/AdminUsersHeader";
 import { AdminUsersTable } from "@/components/dashboard/admin/users/AdminUsersTable";
 import { AdminUsersToolbar } from "@/components/dashboard/admin/users/AdminUsersToolbar";
+import { AppToast, type AppToastState } from "@/components/ui/AppToast";
 import {
   filterAdminUsers,
   type AdminUser,
@@ -59,7 +60,9 @@ function getFriendlyUserError(message: string) {
     "User deleted permanently": "Pengguna berhasil dihapus permanen.",
   };
 
-  return messages[message] ?? "Aksi gagal. Silakan periksa kembali data pengguna.";
+  return (
+    messages[message] ?? "Aksi gagal. Silakan periksa kembali data pengguna."
+  );
 }
 
 export default function AdminUsersPage() {
@@ -71,9 +74,10 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<"Semua" | AdminUserRole>(
     "Semua"
   );
-  const [sortBy, setSortBy] = useState<AdminUserSortKey>("joined");
+
+  const [sortBy, setSortBy] = useState<AdminUserSortKey>("name");
   const [sortDirection, setSortDirection] =
-    useState<AdminUserSortDirection>("desc");
+    useState<AdminUserSortDirection>("asc");
 
   const [modal, setModal] = useState<AdminUserModalState>({ mode: null });
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
@@ -81,6 +85,8 @@ export default function AdminUsersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [toast, setToast] = useState<AppToastState>(null);
+  const toastTimeoutRef = useRef<number | null>(null);
 
   const filteredUsers = useMemo(() => {
     const filtered = filterAdminUsers(users, search, roleFilter, statusFilter);
@@ -89,6 +95,27 @@ export default function AdminUsersPage() {
   }, [users, search, roleFilter, statusFilter, sortBy, sortDirection]);
 
   const closeModal = () => setModal({ mode: null });
+
+  const showToast = useCallback((nextToast: NonNullable<AppToastState>) => {
+    if (toastTimeoutRef.current !== null) {
+      window.clearTimeout(toastTimeoutRef.current);
+    }
+
+    setToast(nextToast);
+
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 3500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current !== null) {
+        window.clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const loadUsers = useCallback(async () => {
     setIsLoading(true);
@@ -103,7 +130,14 @@ export default function AdminUsersPage() {
       const result = (await response.json()) as UsersApiResponse;
 
       if (!response.ok || !result.success || !result.data) {
-        setErrorMessage(result.message || "Gagal mengambil data pengguna.");
+        const message = result.message || "Gagal mengambil data pengguna.";
+
+        setErrorMessage(message);
+        showToast({
+          type: "error",
+          title: "Data pengguna gagal dimuat",
+          message,
+        });
         return;
       }
 
@@ -114,11 +148,20 @@ export default function AdminUsersPage() {
       setUsers(mappedUsers);
     } catch (error) {
       console.error("Load users error:", error);
-      setErrorMessage("Terjadi kesalahan koneksi saat mengambil data pengguna.");
+
+      const message =
+        "Terjadi kesalahan koneksi saat mengambil data pengguna.";
+
+      setErrorMessage(message);
+      showToast({
+        type: "error",
+        title: "Koneksi bermasalah",
+        message,
+      });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     void loadUsers();
@@ -161,6 +204,15 @@ export default function AdminUsersPage() {
           user.id === targetUser.id ? updatedUser : user
         )
       );
+
+      showToast({
+        type: "success",
+        title:
+          updatedUser.status === "Aktif"
+            ? "Akun berhasil diaktifkan"
+            : "Akun berhasil dinonaktifkan",
+        message: `${updatedUser.name} sekarang berstatus ${updatedUser.status}.`,
+      });
     } catch (error) {
       const message =
         error instanceof Error
@@ -168,6 +220,11 @@ export default function AdminUsersPage() {
           : "Terjadi kesalahan koneksi saat memperbarui status akun.";
 
       setErrorMessage(message);
+      showToast({
+        type: "error",
+        title: "Status akun gagal diperbarui",
+        message,
+      });
     } finally {
       setIsMutating(false);
     }
@@ -182,9 +239,15 @@ export default function AdminUsersPage() {
     }
 
     if (targetUser.status !== "Nonaktif") {
-      setErrorMessage(
-        "Akun aktif harus dinonaktifkan terlebih dahulu sebelum dapat dihapus permanen."
-      );
+      const message =
+        "Akun aktif harus dinonaktifkan terlebih dahulu sebelum dapat dihapus permanen.";
+
+      setErrorMessage(message);
+      showToast({
+        type: "warning",
+        title: "Akun masih aktif",
+        message,
+      });
       setDeleteTarget(null);
       return;
     }
@@ -206,7 +269,14 @@ export default function AdminUsersPage() {
       };
 
       if (!response.ok || !result.success || !result.data) {
-        setErrorMessage(getFriendlyUserError(result.message));
+        const message = getFriendlyUserError(result.message);
+
+        setErrorMessage(message);
+        showToast({
+          type: "error",
+          title: "Pengguna gagal dihapus",
+          message,
+        });
         return;
       }
 
@@ -214,9 +284,23 @@ export default function AdminUsersPage() {
         currentUsers.filter((user) => user.id !== result.data?.id)
       );
       setDeleteTarget(null);
+
+      showToast({
+        type: "success",
+        title: "Pengguna berhasil dihapus",
+        message: `${targetUser.name} sudah dihapus permanen dari sistem.`,
+      });
     } catch (error) {
       console.error("Delete user error:", error);
-      setErrorMessage("Terjadi kesalahan koneksi saat menghapus pengguna.");
+
+      const message = "Terjadi kesalahan koneksi saat menghapus pengguna.";
+
+      setErrorMessage(message);
+      showToast({
+        type: "error",
+        title: "Koneksi bermasalah",
+        message,
+      });
     } finally {
       setIsMutating(false);
     }
@@ -241,7 +325,14 @@ export default function AdminUsersPage() {
         const result = (await response.json()) as UserApiResponse;
 
         if (!response.ok || !result.success || !result.data) {
-          setErrorMessage(getFriendlyUserError(result.message));
+          const message = getFriendlyUserError(result.message);
+
+          setErrorMessage(message);
+          showToast({
+            type: "error",
+            title: "Pengguna gagal ditambahkan",
+            message,
+          });
           return;
         }
 
@@ -254,11 +345,17 @@ export default function AdminUsersPage() {
           );
         }
 
-        setUsers((currentUsers) => [
-          mapApiUserToAdminUser(createdApiUser),
-          ...currentUsers,
-        ]);
+        const createdUser = mapApiUserToAdminUser(createdApiUser);
+
+        setUsers((currentUsers) => [createdUser, ...currentUsers]);
         closeModal();
+
+        showToast({
+          type: "success",
+          title: "Pengguna berhasil ditambahkan",
+          message: `${createdUser.name} berhasil ditambahkan ke sistem.`,
+        });
+
         return;
       }
 
@@ -274,7 +371,14 @@ export default function AdminUsersPage() {
         const result = (await response.json()) as UserApiResponse;
 
         if (!response.ok || !result.success || !result.data) {
-          setErrorMessage(getFriendlyUserError(result.message));
+          const message = getFriendlyUserError(result.message);
+
+          setErrorMessage(message);
+          showToast({
+            type: "error",
+            title: "Pengguna gagal diperbarui",
+            message,
+          });
           return;
         }
 
@@ -295,6 +399,12 @@ export default function AdminUsersPage() {
           )
         );
         closeModal();
+
+        showToast({
+          type: "success",
+          title: "Pengguna berhasil diperbarui",
+          message: `Data ${updatedUser.name} berhasil disimpan.`,
+        });
       }
     } catch (error) {
       const message =
@@ -303,6 +413,11 @@ export default function AdminUsersPage() {
           : "Terjadi kesalahan koneksi saat menyimpan pengguna.";
 
       setErrorMessage(message);
+      showToast({
+        type: "error",
+        title: "Data pengguna gagal disimpan",
+        message,
+      });
     } finally {
       setIsMutating(false);
     }
@@ -311,12 +426,6 @@ export default function AdminUsersPage() {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
       <AdminUsersHeader onAddUser={() => setModal({ mode: "add" })} />
-
-      {errorMessage && (
-        <div className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-          {errorMessage}
-        </div>
-      )}
 
       <div className="bg-card rounded-2xl sm:rounded-3xl border border-border overflow-hidden shadow-sm">
         <AdminUsersToolbar
@@ -380,6 +489,8 @@ export default function AdminUsersPage() {
           onConfirm={handleDeleteUser}
         />
       )}
+
+      <AppToast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

@@ -103,8 +103,8 @@ export function AdminUsersToolbar({
                 }
                 className="w-full appearance-none truncate rounded-xl border border-border bg-card py-2.5 pl-4 pr-10 text-xs font-bold shadow-sm outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm"
               >
-                <option value="joined">Urut: Tanggal</option>
                 <option value="name">Urut: Nama</option>
+                <option value="joined">Urut: Tanggal</option>
                 <option value="role">Urut: Peran</option>
                 <option value="status">Urut: Status</option>
                 <option value="identityNo">Urut: No ID</option>
