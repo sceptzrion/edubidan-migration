@@ -2,11 +2,55 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail } from "lucide-react";
+import { Loader2, Mail } from "lucide-react";
 
 import { AuthShell } from "@/components/auth/shared/AuthShell";
 import { PasswordInput } from "@/components/auth/shared/PasswordInput";
-import { getRedirectPathByEmail } from "@/lib/auth/auth-redirect";
+
+type LoginApiResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    user: {
+      id: number;
+      name: string;
+      email: string;
+      role: "ADMIN" | "DOSEN" | "MAHASISWA";
+      avatarUrl: string | null;
+      phoneNumber: string | null;
+      isActive: boolean;
+      mahasiswaProfile?: {
+        id: number;
+        npm: string;
+      } | null;
+      dosenProfile?: {
+        id: number;
+        nidnNip: string;
+      } | null;
+    };
+    redirectTo: string;
+  } | null;
+};
+
+function getFriendlyLoginError(message: string) {
+  if (message === "Email is required") {
+    return "Email wajib diisi.";
+  }
+
+  if (message === "Password is required") {
+    return "Kata sandi wajib diisi.";
+  }
+
+  if (message === "Invalid email or password") {
+    return "Email atau kata sandi tidak sesuai.";
+  }
+
+  if (message === "User account is inactive") {
+    return "Akun Anda sedang nonaktif. Silakan hubungi admin.";
+  }
+
+  return "Gagal masuk. Silakan coba lagi.";
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -15,16 +59,52 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const isFormValid = useMemo(() => {
     return email.trim().length > 0 && password.trim().length > 0;
   }, [email, password]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!isFormValid) return;
+    if (!isFormValid || isSubmitting) return;
 
-    router.push(getRedirectPathByEmail(email));
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      const result = (await response.json()) as LoginApiResponse;
+
+      if (!response.ok || !result.success || !result.data) {
+        setErrorMessage(getFriendlyLoginError(result.message));
+        return;
+      }
+
+      const storage = remember ? localStorage : sessionStorage;
+
+      storage.setItem("edubidan-user", JSON.stringify(result.data.user));
+
+      router.push(result.data.redirectTo);
+      router.refresh();
+    } catch (error) {
+      console.error("Login error:", error);
+      setErrorMessage("Terjadi kesalahan koneksi. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -64,9 +144,13 @@ export function LoginForm() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setErrorMessage("");
+                }}
                 placeholder="Masukkan email"
                 className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -75,20 +159,31 @@ export function LoginForm() {
             id="password"
             label="Kata Sandi"
             value={password}
-            onChange={setPassword}
+            onChange={(value) => {
+              setPassword(value);
+              setErrorMessage("");
+            }}
             placeholder="Masukkan kata sandi"
             inputClassName="py-3.5 pl-11 pr-12"
             iconSize={18}
             iconClassName="left-4"
             buttonClassName="right-4"
             labelClassName="text-sm font-medium"
+            disabled={isSubmitting}
           />
+
+          {errorMessage && (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+              {errorMessage}
+            </div>
+          )}
 
           <div className="flex items-center justify-between mt-2 gap-4">
             <button
               type="button"
               onClick={() => setRemember((current) => !current)}
               className="flex items-center gap-2.5 select-none group"
+              disabled={isSubmitting}
             >
               <span
                 className={`w-5 h-5 rounded-sm border-2 flex items-center justify-center transition-all ${
@@ -119,6 +214,7 @@ export function LoginForm() {
               type="button"
               onClick={() => router.push("/forgot-password")}
               className="text-sm text-primary font-semibold hover:underline whitespace-nowrap"
+              disabled={isSubmitting}
             >
               Lupa kata sandi?
             </button>
@@ -126,10 +222,11 @@ export function LoginForm() {
 
           <button
             type="submit"
-            disabled={!isFormValid}
-            className="w-full bg-primary text-primary-foreground py-3.5 mt-4 rounded-xl hover:opacity-90 transition-all font-bold text-base shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!isFormValid || isSubmitting}
+            className="w-full bg-primary text-primary-foreground py-3.5 mt-4 rounded-xl hover:opacity-90 transition-all font-bold text-base shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            Masuk
+            {isSubmitting && <Loader2 size={18} className="animate-spin" />}
+            {isSubmitting ? "Memproses..." : "Masuk"}
           </button>
         </div>
 
@@ -139,6 +236,7 @@ export function LoginForm() {
             type="button"
             onClick={() => router.push("/register")}
             className="text-primary font-bold hover:underline"
+            disabled={isSubmitting}
           >
             Daftar Sekarang
           </button>

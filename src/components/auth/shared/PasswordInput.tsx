@@ -1,43 +1,47 @@
 "use client";
 
-import { useState } from "react";
 import { Eye, EyeOff, Lock } from "lucide-react";
+import { useState } from "react";
 
-interface PasswordInputProps {
+type PasswordInputProps = {
   id: string;
-  label: string;
+  label?: string;
   value: string;
-  placeholder?: string;
   onChange: (value: string) => void;
+  placeholder?: string;
   inputClassName?: string;
+  iconSize?: number;
   iconClassName?: string;
   buttonClassName?: string;
   labelClassName?: string;
-  iconSize?: number;
-}
+  disabled?: boolean;
+};
 
 export function PasswordInput({
   id,
   label,
   value,
-  placeholder = "Masukkan kata sandi",
   onChange,
-  inputClassName = "py-3 pl-10 pr-10",
-  iconClassName = "left-3.5",
-  buttonClassName = "right-2",
-  labelClassName = "text-xs font-semibold",
-  iconSize = 16,
+  placeholder = "Masukkan kata sandi",
+  inputClassName = "",
+  iconSize = 18,
+  iconClassName = "left-4",
+  buttonClassName = "right-4",
+  labelClassName = "text-sm font-medium",
+  disabled = false,
 }: PasswordInputProps) {
-  const [isVisible, setIsVisible] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <div>
-      <label
-        htmlFor={id}
-        className={`${labelClassName} mb-1.5 block text-foreground`}
-      >
-        {label}
-      </label>
+      {label && (
+        <label
+          htmlFor={id}
+          className={`${labelClassName} mb-1.5 block text-foreground`}
+        >
+          {label}
+        </label>
+      )}
 
       <div className="relative group">
         <Lock
@@ -47,22 +51,22 @@ export function PasswordInput({
 
         <input
           id={id}
-          type={isVisible ? "text" : "password"}
+          type={showPassword ? "text" : "password"}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className={`w-full ${inputClassName} rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm`}
+          disabled={disabled}
+          className={`w-full rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm disabled:opacity-60 disabled:cursor-not-allowed ${inputClassName}`}
         />
 
         <button
           type="button"
-          onClick={() => setIsVisible((current) => !current)}
-          className={`absolute ${buttonClassName} top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors z-10 p-2`}
-          aria-label={
-            isVisible ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"
-          }
+          onClick={() => setShowPassword((current) => !current)}
+          className={`absolute ${buttonClassName} top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60 disabled:cursor-not-allowed`}
+          disabled={disabled}
+          aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
         >
-          {isVisible ? <EyeOff size={iconSize} /> : <Eye size={iconSize} />}
+          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
         </button>
       </div>
     </div>
