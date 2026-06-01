@@ -2,12 +2,41 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Hash, Mail, User } from "lucide-react";
+import { Hash, Loader2, Mail, User } from "lucide-react";
 
 import { AuthShell } from "@/components/auth/shared/AuthShell";
 import { PasswordInput } from "@/components/auth/shared/PasswordInput";
 import { RegisterSuccess } from "@/components/auth/register/RegisterSuccess";
 import { TermsModal } from "@/components/modals/TermsModal";
+
+type RegisterApiResponse = {
+  success: boolean;
+  message: string;
+  data: unknown;
+};
+
+function getFriendlyRegisterError(message: string) {
+  const messages: Record<string, string> = {
+    "Name is required": "Nama lengkap wajib diisi.",
+    "NPM is required": "NPM wajib diisi.",
+    "Email is required": "Email wajib diisi.",
+    "Password is required": "Kata sandi wajib diisi.",
+    "Password confirmation is required": "Konfirmasi kata sandi wajib diisi.",
+    "Password must be at least 8 characters":
+      "Kata sandi minimal harus 8 karakter.",
+    "Password confirmation does not match":
+      "Konfirmasi kata sandi belum sesuai.",
+    "NPM must contain 10 to 20 digits": "NPM harus berisi 10 sampai 20 digit.",
+    "Student email must use @student.unsika.ac.id domain":
+      "Email mahasiswa harus menggunakan domain @student.unsika.ac.id.",
+    "Student email must match the NPM format":
+      "Email mahasiswa harus sesuai format NPM, contoh: npm@student.unsika.ac.id.",
+    "Email is already registered": "Email sudah terdaftar.",
+    "NPM is already registered": "NPM sudah terdaftar.",
+  };
+
+  return messages[message] ?? "Registrasi gagal. Silakan periksa kembali data Anda.";
+}
 
 export function RegisterForm() {
   const router = useRouter();
@@ -22,27 +51,78 @@ export function RegisterForm() {
   const [showTerms, setShowTerms] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const normalizedNpm = npm.trim();
   const normalizedEmail = email.trim().toLowerCase();
-  const isEmailValid = normalizedEmail.endsWith("@student.unsika.ac.id");
+  const expectedStudentEmail = normalizedNpm
+    ? `${normalizedNpm}@student.unsika.ac.id`
+    : "";
+
+  const isNpmValid = /^\d{10,20}$/.test(normalizedNpm);
+  const isEmailDomainValid = normalizedEmail.endsWith(
+    "@student.unsika.ac.id"
+  );
+  const isEmailNpmMatch =
+    normalizedNpm.length > 0 && normalizedEmail === expectedStudentEmail;
+  const isEmailValid = isEmailDomainValid && isEmailNpmMatch;
   const isPasswordMatch = password.length > 0 && password === confirmPassword;
 
   const isFormValid = useMemo(() => {
     return (
       fullName.trim().length >= 3 &&
-      npm.trim().length >= 5 &&
+      isNpmValid &&
       isEmailValid &&
       password.length >= 8 &&
       isPasswordMatch &&
       agree
     );
-  }, [agree, fullName, npm, password, isEmailValid, isPasswordMatch]);
+  }, [agree, fullName, isNpmValid, isEmailValid, password, isPasswordMatch]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const clearError = () => {
+    if (errorMessage) {
+      setErrorMessage("");
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!isFormValid) return;
+    if (!isFormValid || isSubmitting) return;
 
-    setIsSuccess(true);
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: fullName,
+          npm,
+          email,
+          password,
+          confirmPassword,
+        }),
+      });
+
+      const result = (await response.json()) as RegisterApiResponse;
+
+      if (!response.ok || !result.success) {
+        setErrorMessage(getFriendlyRegisterError(result.message));
+        return;
+      }
+
+      setIsSuccess(true);
+    } catch (error) {
+      console.error("Register error:", error);
+      setErrorMessage("Terjadi kesalahan koneksi. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -86,9 +166,13 @@ export function RegisterForm() {
                     id="fullName"
                     type="text"
                     value={fullName}
-                    onChange={(event) => setFullName(event.target.value)}
+                    onChange={(event) => {
+                      setFullName(event.target.value);
+                      clearError();
+                    }}
                     placeholder="Nama lengkap"
-                    className="w-full pl-10 pr-3 py-3 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
+                    disabled={isSubmitting}
+                    className="w-full pl-10 pr-3 py-3 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -110,11 +194,21 @@ export function RegisterForm() {
                     id="npm"
                     type="text"
                     value={npm}
-                    onChange={(event) => setNpm(event.target.value)}
-                    placeholder="2210631170131"
-                    className="w-full pl-10 pr-3 py-3 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
+                    onChange={(event) => {
+                      setNpm(event.target.value);
+                      clearError();
+                    }}
+                    placeholder="2310631179999"
+                    disabled={isSubmitting}
+                    className="w-full pl-10 pr-3 py-3 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
+
+                {npm.length > 0 && !isNpmValid && (
+                  <p className="text-[11px] font-medium text-red-500 mt-1.5">
+                    NPM harus berisi 10 sampai 20 digit.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -135,15 +229,25 @@ export function RegisterForm() {
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    clearError();
+                  }}
                   placeholder="npm@student.unsika.ac.id"
-                  className="w-full pl-10 pr-3 py-3 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-3 py-3 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
-              {email.length > 0 && !isEmailValid && (
+              {email.length > 0 && !isEmailDomainValid && (
                 <p className="text-[11px] font-medium text-red-500 mt-1.5">
                   Email mahasiswa harus menggunakan domain @student.unsika.ac.id.
+                </p>
+              )}
+
+              {email.length > 0 && isEmailDomainValid && !isEmailNpmMatch && (
+                <p className="text-[11px] font-medium text-red-500 mt-1.5">
+                  Email harus sesuai NPM, contoh: {expectedStudentEmail}.
                 </p>
               )}
             </div>
@@ -153,8 +257,17 @@ export function RegisterForm() {
                 id="password"
                 label="Kata Sandi"
                 value={password}
-                onChange={setPassword}
+                onChange={(value) => {
+                  setPassword(value);
+                  clearError();
+                }}
                 placeholder="Min. 8 karakter"
+                inputClassName="py-3 pl-10 pr-10"
+                iconSize={16}
+                iconClassName="left-3.5"
+                buttonClassName="right-3.5"
+                labelClassName="text-xs font-semibold"
+                disabled={isSubmitting}
               />
 
               <div>
@@ -162,8 +275,17 @@ export function RegisterForm() {
                   id="confirmPassword"
                   label="Konfirmasi Sandi"
                   value={confirmPassword}
-                  onChange={setConfirmPassword}
+                  onChange={(value) => {
+                    setConfirmPassword(value);
+                    clearError();
+                  }}
                   placeholder="Ulangi sandi"
+                  inputClassName="py-3 pl-10 pr-10"
+                  iconSize={16}
+                  iconClassName="left-3.5"
+                  buttonClassName="right-3.5"
+                  labelClassName="text-xs font-semibold"
+                  disabled={isSubmitting}
                 />
 
                 {confirmPassword.length > 0 && !isPasswordMatch && (
@@ -174,6 +296,12 @@ export function RegisterForm() {
               </div>
             </div>
 
+            {errorMessage && (
+              <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+                {errorMessage}
+              </div>
+            )}
+
             <div className="pt-2">
               <div className="flex items-center gap-3 select-none group w-fit">
                 <button
@@ -181,12 +309,13 @@ export function RegisterForm() {
                   onClick={() =>
                     agree ? setAgree(false) : setShowTerms(true)
                   }
-                  className={`cursor-pointer w-5 h-5 shrink-0 rounded-sm border-2 flex items-center justify-center transition-all ${
+                  className={`cursor-pointer w-5 h-5 shrink-0 rounded-sm border-2 flex items-center justify-center transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                     agree
                       ? "bg-primary border-primary"
                       : "border-muted-foreground/40 bg-transparent group-hover:border-primary/60"
                   }`}
                   aria-label="Setujui syarat dan ketentuan"
+                  disabled={isSubmitting}
                 >
                   {agree && (
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -206,7 +335,8 @@ export function RegisterForm() {
                   <button
                     type="button"
                     onClick={() => setShowTerms(true)}
-                    className="text-primary font-semibold hover:underline"
+                    className="text-primary font-semibold hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={isSubmitting}
                   >
                     Syarat & Ketentuan
                   </button>
@@ -216,10 +346,11 @@ export function RegisterForm() {
 
             <button
               type="submit"
-              disabled={!isFormValid}
-              className="w-full bg-primary text-primary-foreground py-3.5 mt-4 rounded-xl hover:opacity-90 transition-all font-bold text-base shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!isFormValid || isSubmitting}
+              className="w-full bg-primary text-primary-foreground py-3.5 mt-4 rounded-xl hover:opacity-90 transition-all font-bold text-base shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Daftar Sekarang
+              {isSubmitting && <Loader2 size={18} className="animate-spin" />}
+              {isSubmitting ? "Memproses..." : "Daftar Sekarang"}
             </button>
           </div>
 
@@ -228,7 +359,8 @@ export function RegisterForm() {
             <button
               type="button"
               onClick={() => router.push("/login")}
-              className="text-primary font-bold hover:underline"
+              className="text-primary font-bold hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={isSubmitting}
             >
               Masuk
             </button>
@@ -242,6 +374,7 @@ export function RegisterForm() {
         onAgree={() => {
           setAgree(true);
           setShowTerms(false);
+          clearError();
         }}
       />
     </AuthShell>

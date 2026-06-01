@@ -87,7 +87,7 @@ export function UserAccountDropdown({
     clearStoredUser();
     setIsOpen(false);
     router.replace(logoutRedirectPath);
- };
+  };
 
   return (
     <div ref={dropdownRef} className="relative">

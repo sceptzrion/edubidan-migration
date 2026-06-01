@@ -23,14 +23,14 @@ export function Navbar() {
   const isHomePage = pathname === "/";
 
   useEffect(() => {
-  function syncStoredUser() {
-    setStoredUserState(getStoredUser());
-  }
+    function syncStoredUser() {
+      setStoredUserState(getStoredUser());
+    }
 
-  syncStoredUser();
+    syncStoredUser();
 
-  return subscribeToAuthStateChange(syncStoredUser);
-}, []);
+    return subscribeToAuthStateChange(syncStoredUser);
+  }, []);
 
   return (
     <nav className="sticky top-0 z-50 bg-card/80 backdrop-blur-xl border-b border-border">

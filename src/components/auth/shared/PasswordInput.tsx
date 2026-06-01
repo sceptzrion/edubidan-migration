@@ -23,7 +23,7 @@ export function PasswordInput({
   value,
   onChange,
   placeholder = "Masukkan kata sandi",
-  inputClassName = "",
+  inputClassName = "py-3 pl-10 pr-10",
   iconSize = 18,
   iconClassName = "left-4",
   buttonClassName = "right-4",
