@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getUserById, updateUserByAdmin } from "@/services/user.service";
+import {
+  deleteUserByAdmin,
+  getUserById,
+  updateUserByAdmin,
+} from "@/services/user.service";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +44,38 @@ function getUpdateUserErrorMessage(
   };
 
   return messages[error];
+}
+
+function getDeleteUserErrorMessage(
+  error: NonNullable<Awaited<ReturnType<typeof deleteUserByAdmin>>["error"]>
+) {
+  const messages = {
+    USER_NOT_FOUND: "User not found",
+    ADMIN_CANNOT_BE_DELETED: "Admin account cannot be deleted",
+    USER_MUST_BE_INACTIVE: "User must be inactive before permanent deletion",
+    USER_HAS_RELATED_DATA:
+      "User cannot be deleted because related learning data already exists",
+  };
+
+  return messages[error];
+}
+
+function getDeleteUserStatusCode(
+  error: NonNullable<Awaited<ReturnType<typeof deleteUserByAdmin>>["error"]>
+) {
+  if (error === "USER_NOT_FOUND") {
+    return 404;
+  }
+
+  if (
+    error === "ADMIN_CANNOT_BE_DELETED" ||
+    error === "USER_MUST_BE_INACTIVE" ||
+    error === "USER_HAS_RELATED_DATA"
+  ) {
+    return 409;
+  }
+
+  return 400;
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -150,6 +186,62 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       {
         success: false,
         message: "Failed to update user",
+        data: null,
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+}
+
+export async function DELETE(_request: Request, context: RouteContext) {
+  try {
+    const { id } = await context.params;
+    const userId = parseUserId(id);
+
+    if (!userId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid user id",
+          data: null,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const result = await deleteUserByAdmin(userId);
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: getDeleteUserErrorMessage(result.error),
+          data: null,
+        },
+        {
+          status: getDeleteUserStatusCode(result.error),
+        }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "User deleted permanently",
+      data: {
+        id: result.deletedUserId,
+      },
+    });
+  } catch (error) {
+    console.error("DELETE /api/users/[id] error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to delete user",
         data: null,
       },
       {

@@ -648,3 +648,85 @@ export async function updateUserStatusByAdmin(params: {
     error: null,
   };
 }
+
+export type DeleteUserByAdminResult =
+  | {
+      success: true;
+      deletedUserId: number;
+      error: null;
+    }
+  | {
+      success: false;
+      deletedUserId: null;
+      error:
+        | "USER_NOT_FOUND"
+        | "ADMIN_CANNOT_BE_DELETED"
+        | "USER_MUST_BE_INACTIVE"
+        | "USER_HAS_RELATED_DATA";
+    };
+
+export async function deleteUserByAdmin(
+  id: number
+): Promise<DeleteUserByAdminResult> {
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      id: true,
+      role: true,
+      isActive: true,
+    },
+  });
+
+  if (!existingUser) {
+    return {
+      success: false,
+      deletedUserId: null,
+      error: "USER_NOT_FOUND",
+    };
+  }
+
+  if (existingUser.role === Role.ADMIN) {
+    return {
+      success: false,
+      deletedUserId: null,
+      error: "ADMIN_CANNOT_BE_DELETED",
+    };
+  }
+
+  if (existingUser.isActive) {
+    return {
+      success: false,
+      deletedUserId: null,
+      error: "USER_MUST_BE_INACTIVE",
+    };
+  }
+
+  try {
+    await prisma.user.delete({
+      where: {
+        id,
+      },
+    });
+
+    return {
+      success: true,
+      deletedUserId: id,
+      error: null,
+    };
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    ) {
+      return {
+        success: false,
+        deletedUserId: null,
+        error: "USER_HAS_RELATED_DATA",
+      };
+    }
+
+    throw error;
+  }
+}

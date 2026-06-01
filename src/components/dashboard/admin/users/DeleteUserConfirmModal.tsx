@@ -40,7 +40,7 @@ export function DeleteUserConfirmModal({
         type="button"
         onClick={onClose}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        aria-label="Tutup konfirmasi hapus pengguna"
+        aria-label="Tutup konfirmasi hapus permanen pengguna"
       />
 
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-border bg-card shadow-2xl animate-in zoom-in-95 duration-200">
@@ -52,12 +52,12 @@ export function DeleteUserConfirmModal({
 
             <div>
               <h2 className="text-lg font-extrabold text-foreground">
-                Hapus Pengguna?
+                Hapus Permanen Pengguna?
               </h2>
 
               <p className="mt-1 text-xs font-medium leading-relaxed text-muted-foreground sm:text-sm">
-                Pastikan data pengguna yang dipilih sudah benar sebelum
-                dihapus dari daftar.
+                Aksi hapus permanen hanya tersedia untuk akun yang sudah
+                dinonaktifkan.
               </p>
             </div>
           </div>
@@ -90,13 +90,17 @@ export function DeleteUserConfirmModal({
               <span className="rounded-lg border border-border bg-card px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
                 {user.identityNo}
               </span>
+
+              <span className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-red-500">
+                {user.status}
+              </span>
             </div>
           </div>
 
           <p className="text-xs font-medium leading-relaxed text-muted-foreground sm:text-sm">
-            Untuk implementasi backend nanti, aksi penghapusan sebaiknya
-            dipertimbangkan sebagai nonaktif akun atau soft delete agar data
-            penting tidak hilang permanen.
+            Untuk saat ini endpoint hapus permanen belum diaktifkan. Tombol ini
+            disiapkan agar alur UI sudah sesuai: nonaktifkan akun terlebih
+            dahulu, lalu hapus permanen bila benar-benar diperlukan.
           </p>
         </div>
 
@@ -114,7 +118,7 @@ export function DeleteUserConfirmModal({
             onClick={() => onConfirm(user.id)}
             className="w-full rounded-xl bg-red-500 px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-red-500/20 transition-colors hover:bg-red-600 sm:w-auto"
           >
-            Ya, Hapus Pengguna
+            Hapus Permanen
           </button>
         </div>
       </div>

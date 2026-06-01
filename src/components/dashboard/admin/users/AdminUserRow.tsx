@@ -1,6 +1,6 @@
 "use client";
 
-import { Edit3, Eye, Trash2 } from "lucide-react";
+import { Edit3, Eye, Power, PowerOff, Trash2 } from "lucide-react";
 
 import type { AdminUser } from "@/data/learning/admin/admin-users";
 
@@ -8,6 +8,7 @@ interface AdminUserRowProps {
   user: AdminUser;
   onView: (user: AdminUser) => void;
   onEdit: (user: AdminUser) => void;
+  onToggleStatus: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
 }
 
@@ -15,9 +16,10 @@ export function AdminUserRow({
   user,
   onView,
   onEdit,
+  onToggleStatus,
   onDelete,
 }: AdminUserRowProps) {
-  const identityLabel = user.role === "Dosen" ? "NIDN" : "NIM";
+  const identityLabel = user.role === "Dosen" ? "NIDN" : "NPM";
 
   return (
     <tr className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors group">
@@ -107,13 +109,33 @@ export function AdminUserRow({
 
           <button
             type="button"
-            onClick={() => onDelete(user)}
-            className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-colors text-muted-foreground"
-            title="Hapus"
-            aria-label={`Hapus ${user.name}`}
+            onClick={() => onToggleStatus(user)}
+            className={`p-2 rounded-xl transition-colors text-muted-foreground ${
+              user.status === "Aktif"
+                ? "hover:bg-amber-500/10 hover:text-amber-500"
+                : "hover:bg-green-500/10 hover:text-green-600"
+            }`}
+            title={user.status === "Aktif" ? "Nonaktifkan Akun" : "Aktifkan Akun"}
+            aria-label={
+              user.status === "Aktif"
+                ? `Nonaktifkan akun ${user.name}`
+                : `Aktifkan akun ${user.name}`
+            }
           >
-            <Trash2 size={18} />
+            {user.status === "Aktif" ? <PowerOff size={18} /> : <Power size={18} />}
           </button>
+
+          {user.status === "Nonaktif" && (
+            <button
+              type="button"
+              onClick={() => onDelete(user)}
+              className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-colors text-muted-foreground"
+              title="Hapus Permanen"
+              aria-label={`Hapus permanen ${user.name}`}
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
         </div>
       </td>
     </tr>

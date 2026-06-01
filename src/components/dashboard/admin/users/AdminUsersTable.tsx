@@ -8,6 +8,7 @@ interface AdminUsersTableProps {
   users: AdminUser[];
   onView: (user: AdminUser) => void;
   onEdit: (user: AdminUser) => void;
+  onToggleStatus: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
 }
 
@@ -15,6 +16,7 @@ export function AdminUsersTable({
   users,
   onView,
   onEdit,
+  onToggleStatus,
   onDelete,
 }: AdminUsersTableProps) {
   return (
@@ -27,7 +29,7 @@ export function AdminUsersTable({
             </th>
 
             <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider">
-              Identitas
+              No ID
             </th>
 
             <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider">
@@ -55,6 +57,7 @@ export function AdminUsersTable({
               user={user}
               onView={onView}
               onEdit={onEdit}
+              onToggleStatus={onToggleStatus}
               onDelete={onDelete}
             />
           ))}
