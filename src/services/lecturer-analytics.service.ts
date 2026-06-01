@@ -472,37 +472,37 @@ export async function getModuleQuizAnalysis(
     });
 
   const allScores = learningModule.contents.flatMap((content) => {
-  if (!content.kuis) {
-    return [];
-  }
+    if (!content.kuis) {
+      return [];
+    }
 
-  return content.kuis.attempts
-    .map((attempt) => attempt.score)
-    .filter((score): score is number => typeof score === "number");
-});
+    return content.kuis.attempts
+      .map((attempt) => attempt.score)
+      .filter((score): score is number => typeof score === "number");
+  });
 
-const passedCount = allScores.filter((score) => score >= PASSING_SCORE).length;
+  const passedCount = allScores.filter((score) => score >= PASSING_SCORE).length;
 
-return {
-  success: true,
-  data: {
-    module: {
-      id: learningModule.id,
-      title: learningModule.title,
-      accessCode: learningModule.accessCode,
+  return {
+    success: true,
+    data: {
+      module: {
+        id: learningModule.id,
+        title: learningModule.title,
+        accessCode: learningModule.accessCode,
+      },
+      summary: {
+        totalQuizzes: quizzes.length,
+        totalAttempts: allScores.length,
+        averageScore: calculateAverage(allScores),
+        passingScore: PASSING_SCORE,
+        passRate:
+          allScores.length > 0
+            ? roundScore((passedCount / allScores.length) * 100)
+            : 0,
+      },
+      quizzes,
     },
-    summary: {
-      totalQuizzes: quizzes.length,
-      totalAttempts: allScores.length,
-      averageScore: calculateAverage(allScores),
-      passingScore: PASSING_SCORE,
-      passRate:
-        allScores.length > 0
-          ? roundScore((passedCount / allScores.length) * 100)
-          : 0,
-    },
-    quizzes,
-  },
-  error: null,
-};
+    error: null,
+  };
 }
