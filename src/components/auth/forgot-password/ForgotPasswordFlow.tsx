@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AuthShell } from "@/components/auth/shared/AuthShell";
@@ -9,8 +9,44 @@ import { ForgotPasswordOtpStep } from "@/components/auth/forgot-password/ForgotP
 import { ForgotPasswordProgress } from "@/components/auth/forgot-password/ForgotPasswordProgress";
 import { ForgotPasswordResetStep } from "@/components/auth/forgot-password/ForgotPasswordResetStep";
 import { ForgotPasswordSuccess } from "@/components/auth/forgot-password/ForgotPasswordSuccess";
+import { AppToast, type AppToastState } from "@/components/ui/AppToast";
 
 export type ForgotPasswordStep = "email" | "otp" | "reset" | "success";
+
+type ForgotPasswordApiResponse = {
+  success: boolean;
+  message: string;
+  data: unknown;
+  meta?: {
+    email?: {
+      sent: boolean;
+      skipped: boolean;
+      error: string | null;
+    };
+  };
+};
+
+function getFriendlyForgotPasswordError(message: string) {
+  const messages: Record<string, string> = {
+    "Email is required": "Email wajib diisi.",
+    "User not found": "Email tidak ditemukan.",
+    "User is inactive": "Akun sedang nonaktif. Silakan hubungi admin.",
+    "OTP is required": "Kode OTP wajib diisi.",
+    "OTP is invalid": "Kode OTP tidak valid.",
+    "OTP is expired": "Kode OTP sudah kedaluwarsa. Silakan kirim ulang kode.",
+    "Password is required": "Kata sandi wajib diisi.",
+    "Password confirmation is required": "Konfirmasi kata sandi wajib diisi.",
+    "Password must be at least 8 characters":
+      "Kata sandi minimal harus 8 karakter.",
+    "Password confirmation does not match":
+      "Konfirmasi kata sandi belum sesuai.",
+    "Failed to request OTP": "Gagal meminta kode OTP. Silakan coba lagi.",
+    "Failed to verify OTP": "Gagal memverifikasi OTP. Silakan coba lagi.",
+    "Failed to reset password": "Gagal mengatur ulang kata sandi.",
+  };
+
+  return messages[message] ?? "Terjadi kesalahan. Silakan coba lagi.";
+}
 
 export function ForgotPasswordFlow() {
   const router = useRouter();
@@ -21,7 +57,22 @@ export function ForgotPasswordFlow() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState<AppToastState>(null);
+
+  const otpCode = otp.join("");
+
+  const showToast = useCallback((nextToast: NonNullable<AppToastState>) => {
+    setToast(nextToast);
+
+    window.setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  }, []);
+
   const handleBack = () => {
+    if (isSubmitting) return;
+
     if (step === "email") {
       router.push("/login");
       return;
@@ -37,6 +88,169 @@ export function ForgotPasswordFlow() {
     }
   };
 
+  const requestOtp = async () => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/auth/forgot-password/request-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+        }),
+      });
+
+      const result = (await response.json()) as ForgotPasswordApiResponse;
+
+      if (!response.ok || !result.success) {
+        showToast({
+          type: "error",
+          title: "Kode OTP gagal dikirim",
+          message: getFriendlyForgotPasswordError(result.message),
+        });
+        return;
+      }
+
+      const emailMeta = result.meta?.email;
+
+      let message = "Kode OTP berhasil dibuat. Silakan cek email Anda.";
+
+      if (emailMeta?.skipped) {
+        message =
+          "Kode OTP berhasil dibuat. Email dilewati karena RESEND_API_KEY belum dikonfigurasi. Cek kode OTP di Prisma Studio.";
+      }
+
+      if (emailMeta && !emailMeta.sent && !emailMeta.skipped && emailMeta.error) {
+        message = `Kode OTP dibuat, tetapi email gagal dikirim: ${emailMeta.error}`;
+      }
+
+      showToast({
+        type: emailMeta && !emailMeta.sent && !emailMeta.skipped ? "warning" : "success",
+        title: "Kode OTP berhasil diproses",
+        message,
+      });
+
+      setOtp(["", "", "", ""]);
+      setStep("otp");
+    } catch (error) {
+      console.error("Request OTP error:", error);
+
+      showToast({
+        type: "error",
+        title: "Koneksi bermasalah",
+        message: "Terjadi kesalahan koneksi saat meminta kode OTP.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/auth/forgot-password/verify-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          otpCode,
+        }),
+      });
+
+      const result = (await response.json()) as ForgotPasswordApiResponse;
+
+      if (!response.ok || !result.success) {
+        showToast({
+          type: "error",
+          title: "Verifikasi OTP gagal",
+          message: getFriendlyForgotPasswordError(result.message),
+        });
+        return;
+      }
+
+      showToast({
+        type: "success",
+        title: "Kode OTP valid",
+        message: "Silakan buat kata sandi baru untuk akun Anda.",
+      });
+
+      setStep("reset");
+    } catch (error) {
+      console.error("Verify OTP error:", error);
+
+      showToast({
+        type: "error",
+        title: "Koneksi bermasalah",
+        message: "Terjadi kesalahan koneksi saat memverifikasi kode OTP.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetPassword = async () => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/auth/forgot-password/reset", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          otpCode,
+          password,
+          confirmPassword,
+        }),
+      });
+
+      const result = (await response.json()) as ForgotPasswordApiResponse;
+
+      if (!response.ok || !result.success) {
+        showToast({
+          type: "error",
+          title: "Reset password gagal",
+          message: getFriendlyForgotPasswordError(result.message),
+        });
+        return;
+      }
+
+      showToast({
+        type: "success",
+        title: "Password berhasil diubah",
+        message: "Silakan masuk kembali menggunakan kata sandi baru.",
+      });
+
+      setStep("success");
+    } catch (error) {
+      console.error("Reset password error:", error);
+
+      showToast({
+        type: "error",
+        title: "Koneksi bermasalah",
+        message: "Terjadi kesalahan koneksi saat mengatur ulang password.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    await requestOtp();
+  };
+
   return (
     <AuthShell
       sideTitle="Atur Ulang Kata Sandi"
@@ -50,8 +264,9 @@ export function ForgotPasswordFlow() {
       {step === "email" && (
         <ForgotPasswordEmailStep
           email={email}
+          isSubmitting={isSubmitting}
           onEmailChange={setEmail}
-          onSubmit={() => setStep("otp")}
+          onSubmit={requestOtp}
         />
       )}
 
@@ -59,8 +274,10 @@ export function ForgotPasswordFlow() {
         <ForgotPasswordOtpStep
           email={email}
           otp={otp}
+          isSubmitting={isSubmitting}
           onOtpChange={setOtp}
-          onSubmit={() => setStep("reset")}
+          onSubmit={verifyOtp}
+          onResend={resendOtp}
         />
       )}
 
@@ -68,13 +285,16 @@ export function ForgotPasswordFlow() {
         <ForgotPasswordResetStep
           password={password}
           confirmPassword={confirmPassword}
+          isSubmitting={isSubmitting}
           onPasswordChange={setPassword}
           onConfirmPasswordChange={setConfirmPassword}
-          onSubmit={() => setStep("success")}
+          onSubmit={resetPassword}
         />
       )}
 
       {step === "success" && <ForgotPasswordSuccess />}
+
+      <AppToast toast={toast} onClose={() => setToast(null)} />
     </AuthShell>
   );
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import { FormEvent } from "react";
-import { Lock } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 
 import { PasswordInput } from "@/components/auth/shared/PasswordInput";
 
 interface ForgotPasswordResetStepProps {
   password: string;
   confirmPassword: string;
+  isSubmitting: boolean;
   onPasswordChange: (password: string) => void;
   onConfirmPasswordChange: (password: string) => void;
   onSubmit: () => void;
@@ -16,6 +17,7 @@ interface ForgotPasswordResetStepProps {
 export function ForgotPasswordResetStep({
   password,
   confirmPassword,
+  isSubmitting,
   onPasswordChange,
   onConfirmPasswordChange,
   onSubmit,
@@ -26,7 +28,7 @@ export function ForgotPasswordResetStep({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!isFormValid) return;
+    if (!isFormValid || isSubmitting) return;
 
     onSubmit();
   };
@@ -61,6 +63,7 @@ export function ForgotPasswordResetStep({
           iconClassName="left-4"
           buttonClassName="right-4"
           labelClassName="text-sm font-medium"
+          disabled={isSubmitting}
         />
 
         <div>
@@ -75,6 +78,7 @@ export function ForgotPasswordResetStep({
             iconClassName="left-4"
             buttonClassName="right-4"
             labelClassName="text-sm font-medium"
+            disabled={isSubmitting}
           />
 
           {confirmPassword.length > 0 && !isPasswordMatch && (
@@ -86,10 +90,11 @@ export function ForgotPasswordResetStep({
 
         <button
           type="submit"
-          disabled={!isFormValid}
-          className="w-full bg-primary text-primary-foreground py-3.5 mt-2 rounded-xl hover:opacity-90 transition-all font-bold text-base shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={!isFormValid || isSubmitting}
+          className="w-full bg-primary text-primary-foreground py-3.5 mt-2 rounded-xl hover:opacity-90 transition-all font-bold text-base shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          Simpan Kata Sandi
+          {isSubmitting && <Loader2 size={18} className="animate-spin" />}
+          {isSubmitting ? "Menyimpan..." : "Simpan Kata Sandi"}
         </button>
       </div>
     </form>

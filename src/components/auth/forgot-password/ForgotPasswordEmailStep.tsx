@@ -1,16 +1,18 @@
 "use client";
 
 import { FormEvent } from "react";
-import { ArrowRight, Mail } from "lucide-react";
+import { ArrowRight, Loader2, Mail } from "lucide-react";
 
 interface ForgotPasswordEmailStepProps {
   email: string;
+  isSubmitting: boolean;
   onEmailChange: (email: string) => void;
   onSubmit: () => void;
 }
 
 export function ForgotPasswordEmailStep({
   email,
+  isSubmitting,
   onEmailChange,
   onSubmit,
 }: ForgotPasswordEmailStepProps) {
@@ -19,7 +21,7 @@ export function ForgotPasswordEmailStep({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!isEmailFilled) return;
+    if (!isEmailFilled || isSubmitting) return;
 
     onSubmit();
   };
@@ -63,18 +65,20 @@ export function ForgotPasswordEmailStep({
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
               placeholder="Masukkan email"
-              className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
+              disabled={isSubmitting}
+              className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
         </div>
 
         <button
           type="submit"
-          disabled={!isEmailFilled}
+          disabled={!isEmailFilled || isSubmitting}
           className="w-full bg-primary text-primary-foreground py-3.5 mt-2 rounded-xl hover:opacity-90 transition-all font-bold text-base shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Kirim Kode Verifikasi
-          <ArrowRight size={18} />
+          {isSubmitting && <Loader2 size={18} className="animate-spin" />}
+          {isSubmitting ? "Mengirim..." : "Kirim Kode Verifikasi"}
+          {!isSubmitting && <ArrowRight size={18} />}
         </button>
       </div>
     </form>

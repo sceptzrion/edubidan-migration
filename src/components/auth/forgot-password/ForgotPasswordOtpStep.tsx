@@ -1,26 +1,31 @@
 "use client";
 
 import { useRef } from "react";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Loader2 } from "lucide-react";
 
 interface ForgotPasswordOtpStepProps {
   email: string;
   otp: string[];
+  isSubmitting: boolean;
   onOtpChange: (otp: string[]) => void;
   onSubmit: () => void;
+  onResend: () => void;
 }
 
 export function ForgotPasswordOtpStep({
   email,
   otp,
+  isSubmitting,
   onOtpChange,
   onSubmit,
+  onResend,
 }: ForgotPasswordOtpStepProps) {
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const isOtpComplete = otp.every((digit) => digit.trim().length === 1);
 
   const handleChange = (index: number, value: string) => {
+    if (isSubmitting) return;
     if (value.length > 1 || !/^\d*$/.test(value)) return;
 
     const newOtp = [...otp];
@@ -41,6 +46,18 @@ export function ForgotPasswordOtpStep({
     }
   };
 
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (isSubmitting) return;
+
+    const pasted = event.clipboardData.getData("text").replace(/\D/g, "");
+
+    if (pasted.length !== 4) return;
+
+    event.preventDefault();
+    onOtpChange(pasted.split(""));
+    inputRefs.current[3]?.focus();
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-right-4 duration-500">
       <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
@@ -59,7 +76,10 @@ export function ForgotPasswordOtpStep({
         .
       </p>
 
-      <div className="flex justify-between w-full mb-8 gap-3">
+      <div
+        className="flex justify-between w-full mb-8 gap-3"
+        onPaste={handlePaste}
+      >
         {otp.map((digit, index) => (
           <input
             key={index}
@@ -70,9 +90,10 @@ export function ForgotPasswordOtpStep({
             inputMode="numeric"
             maxLength={1}
             value={digit}
+            disabled={isSubmitting}
             onChange={(event) => handleChange(index, event.target.value)}
             onKeyDown={(event) => handleKeyDown(index, event)}
-            className="w-16 h-16 sm:w-20 sm:h-20 text-center text-2xl sm:text-3xl font-bold rounded-xl bg-card border-2 border-border focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+            className="w-16 h-16 sm:w-20 sm:h-20 text-center text-2xl sm:text-3xl font-bold rounded-xl bg-card border-2 border-border focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           />
         ))}
       </div>
@@ -80,17 +101,20 @@ export function ForgotPasswordOtpStep({
       <button
         type="button"
         onClick={onSubmit}
-        disabled={!isOtpComplete}
-        className="w-full bg-primary text-primary-foreground py-3.5 rounded-xl hover:opacity-90 transition-all font-bold text-base shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={!isOtpComplete || isSubmitting}
+        className="w-full bg-primary text-primary-foreground py-3.5 rounded-xl hover:opacity-90 transition-all font-bold text-base shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
-        Verifikasi Kode
+        {isSubmitting && <Loader2 size={18} className="animate-spin" />}
+        {isSubmitting ? "Memverifikasi..." : "Verifikasi Kode"}
       </button>
 
       <p className="text-center text-sm text-muted-foreground mt-6">
         Tidak menerima kode?{" "}
         <button
           type="button"
-          className="text-primary font-bold hover:underline"
+          onClick={onResend}
+          disabled={isSubmitting}
+          className="text-primary font-bold hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
         >
           Kirim ulang
         </button>

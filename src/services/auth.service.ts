@@ -463,6 +463,25 @@ function getOtpExpiryDate() {
   return new Date(Date.now() + OTP_EXPIRES_IN_MINUTES * 60 * 1000);
 }
 
+async function expirePendingOtps(email?: string) {
+  await prisma.otpCode.updateMany({
+    where: {
+      status: OtpStatus.PENDING,
+      expiresAt: {
+        lt: new Date(),
+      },
+      ...(email
+        ? {
+            email,
+          }
+        : {}),
+    },
+    data: {
+      status: OtpStatus.EXPIRED,
+    },
+  });
+}
+
 export type RequestForgotPasswordOtpResult =
   | {
       success: true;
@@ -502,6 +521,8 @@ export async function requestForgotPasswordOtp(params: {
       error: "EMAIL_REQUIRED",
     };
   }
+
+  await expirePendingOtps(email);
 
   const user = await prisma.user.findUnique({
     where: {
@@ -622,6 +643,8 @@ export async function verifyForgotPasswordOtp(params: {
       error: "OTP_REQUIRED",
     };
   }
+
+  await expirePendingOtps(email);
 
   const user = await prisma.user.findUnique({
     where: {
@@ -764,6 +787,8 @@ export async function resetPasswordWithOtp(params: {
       error: "PASSWORD_MISMATCH",
     };
   }
+
+  await expirePendingOtps(email);
 
   const user = await prisma.user.findUnique({
     where: {
