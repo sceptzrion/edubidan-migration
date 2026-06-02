@@ -463,18 +463,25 @@ function getOtpExpiryDate() {
   return new Date(Date.now() + OTP_EXPIRES_IN_MINUTES * 60 * 1000);
 }
 
-async function expirePendingOtps(email?: string) {
+async function expirePendingOtps() {
   await prisma.otpCode.updateMany({
     where: {
       status: OtpStatus.PENDING,
       expiresAt: {
         lt: new Date(),
       },
-      ...(email
-        ? {
-            email,
-          }
-        : {}),
+    },
+    data: {
+      status: OtpStatus.EXPIRED,
+    },
+  });
+}
+
+async function expirePendingOtpsByEmail(email: string) {
+  await prisma.otpCode.updateMany({
+    where: {
+      email,
+      status: OtpStatus.PENDING,
     },
     data: {
       status: OtpStatus.EXPIRED,
@@ -522,7 +529,7 @@ export async function requestForgotPasswordOtp(params: {
     };
   }
 
-  await expirePendingOtps(email);
+  await expirePendingOtps();
 
   const user = await prisma.user.findUnique({
     where: {
@@ -552,15 +559,7 @@ export async function requestForgotPasswordOtp(params: {
     };
   }
 
-  await prisma.otpCode.updateMany({
-    where: {
-      email,
-      status: OtpStatus.PENDING,
-    },
-    data: {
-      status: OtpStatus.EXPIRED,
-    },
-  });
+  await expirePendingOtpsByEmail(email);
 
   const otpCode = generateOtpCode();
 
@@ -644,7 +643,7 @@ export async function verifyForgotPasswordOtp(params: {
     };
   }
 
-  await expirePendingOtps(email);
+  await expirePendingOtps();
 
   const user = await prisma.user.findUnique({
     where: {
@@ -788,7 +787,7 @@ export async function resetPasswordWithOtp(params: {
     };
   }
 
-  await expirePendingOtps(email);
+  await expirePendingOtps();
 
   const user = await prisma.user.findUnique({
     where: {
