@@ -129,9 +129,7 @@ export function buildCreateUserPayload(
     identifier: data.identityNo?.trim() ?? "",
     phoneNumber: data.phone?.trim() || null,
     avatarUrl: null,
-    password: useAutoPassword
-      ? "password123"
-      : data.password?.trim() || "password123",
+    password: useAutoPassword ? "password123" : data.password?.trim() ?? "",
   };
 }
 

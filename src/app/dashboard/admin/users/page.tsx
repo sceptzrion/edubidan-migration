@@ -354,7 +354,10 @@ export default function AdminUsersPage() {
         showToast({
           type: "success",
           title: "Pengguna berhasil ditambahkan",
-          message: `${createdUser.name} berhasil ditambahkan ke sistem.`,
+          message:
+            data.useAutoPassword ?? true
+              ? `${createdUser.name} berhasil ditambahkan dengan password awal password123.`
+              : `${createdUser.name} berhasil ditambahkan dengan password manual dari admin.`,
         });
 
         return;
