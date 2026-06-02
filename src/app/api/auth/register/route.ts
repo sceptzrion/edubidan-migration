@@ -57,6 +57,9 @@ export async function POST(request: NextRequest) {
         success: true,
         message: "Registration successful",
         data: result.user,
+        meta: {
+          email: result.email,
+        },
       },
       {
         status: 201,

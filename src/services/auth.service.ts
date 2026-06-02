@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 import { getUserByEmail } from "@/services/user.service";
+import { sendRegisterSuccessEmail } from "@/services/email/email.service";
 
 const authUserSelect = {
   id: true,
@@ -219,6 +220,22 @@ export type RegisterMahasiswaResult =
       user: Prisma.UserGetPayload<{
         select: typeof safeUserSelect;
       }>;
+      email:
+        | {
+            sent: true;
+            skipped: false;
+            error: null;
+          }
+        | {
+            sent: false;
+            skipped: true;
+            error: null;
+          }
+        | {
+            sent: false;
+            skipped: false;
+            error: string;
+          };
       error: null;
     }
   | {
@@ -403,9 +420,32 @@ export async function registerMahasiswa(params: {
     select: safeUserSelect,
   });
 
-  return {
-    success: true,
-    user,
-    error: null,
-  };
+  const emailResult = await sendRegisterSuccessEmail({
+  to: email,
+  name,
+  email,
+});
+
+return {
+  success: true,
+  user,
+  email: emailResult.success
+    ? emailResult.skipped
+      ? {
+          sent: false,
+          skipped: true,
+          error: null,
+        }
+      : {
+          sent: true,
+          skipped: false,
+          error: null,
+        }
+    : {
+        sent: false,
+        skipped: false,
+        error: emailResult.error,
+      },
+  error: null,
+ };
 }

@@ -13,6 +13,13 @@ type RegisterApiResponse = {
   success: boolean;
   message: string;
   data: unknown;
+  meta?: {
+    email?: {
+      sent: boolean;
+      skipped: boolean;
+      error: string | null;
+    };
+  };
 };
 
 function getFriendlyRegisterError(message: string) {
