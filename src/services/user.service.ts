@@ -2,6 +2,7 @@ import { Prisma, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
+import { sendAccountCreatedEmail } from "@/services/email/email.service";
 
 const userSafeSelect = {
   id: true,
@@ -108,6 +109,22 @@ export type CreateUserByAdminResult =
   | {
       success: true;
       user: SafeUser;
+      email:
+        | {
+            sent: true;
+            skipped: false;
+            error: null;
+          }
+        | {
+            sent: false;
+            skipped: true;
+            error: null;
+          }
+        | {
+            sent: false;
+            skipped: false;
+            error: string;
+          };
       error: null;
     }
   | {
@@ -325,9 +342,34 @@ export async function createUserByAdmin(params: {
     select: userSafeSelect,
   });
 
+  const emailResult = await sendAccountCreatedEmail({
+    to: email,
+    name,
+    email,
+    password,
+    createdByAdmin: true,
+  });
+
   return {
     success: true,
     user,
+    email: emailResult.success
+      ? emailResult.skipped
+        ? {
+            sent: false,
+            skipped: true,
+            error: null,
+          }
+        : {
+            sent: true,
+            skipped: false,
+            error: null,
+          }
+      : {
+          sent: false,
+          skipped: false,
+          error: emailResult.error,
+        },
     error: null,
   };
 }

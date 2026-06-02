@@ -351,13 +351,31 @@ export default function AdminUsersPage() {
         setUsers((currentUsers) => [createdUser, ...currentUsers]);
         closeModal();
 
+        const emailMeta = result.meta?.email;
+        const passwordMessage =
+          data.useAutoPassword ?? true
+            ? `${createdUser.name} berhasil ditambahkan dengan password awal password123.`
+            : `${createdUser.name} berhasil ditambahkan dengan password manual dari admin.`;
+
+        let emailMessage = "Informasi akun akan dapat dikirim setelah email service aktif.";
+
+        if (emailMeta?.sent) {
+          emailMessage = "Informasi akun berhasil dikirim ke email pengguna.";
+        }
+
+        if (emailMeta?.skipped) {
+          emailMessage =
+            "Pengiriman email dilewati karena RESEND_API_KEY belum dikonfigurasi.";
+        }
+
+        if (emailMeta && !emailMeta.sent && !emailMeta.skipped && emailMeta.error) {
+          emailMessage = `Akun berhasil dibuat, tetapi email gagal dikirim: ${emailMeta.error}`;
+        }
+
         showToast({
-          type: "success",
+          type: emailMeta && !emailMeta.sent && !emailMeta.skipped ? "warning" : "success",
           title: "Pengguna berhasil ditambahkan",
-          message:
-            data.useAutoPassword ?? true
-              ? `${createdUser.name} berhasil ditambahkan dengan password awal password123.`
-              : `${createdUser.name} berhasil ditambahkan dengan password manual dari admin.`,
+          message: `${passwordMessage} ${emailMessage}`,
         });
 
         return;

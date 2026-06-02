@@ -37,6 +37,13 @@ export type UserApiResponse = {
   success: boolean;
   message: string;
   data: ApiUser | null;
+  meta?: {
+    email?: {
+      sent: boolean;
+      skipped: boolean;
+      error: string | null;
+    };
+  };
 };
 
 export type AdminUserSortKey =

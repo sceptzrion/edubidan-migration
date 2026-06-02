@@ -85,6 +85,9 @@ export async function POST(request: NextRequest) {
         success: true,
         message: "User created successfully",
         data: result.user,
+        meta: {
+          email: result.email,
+        },
       },
       {
         status: 201,
