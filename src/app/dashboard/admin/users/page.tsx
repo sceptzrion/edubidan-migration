@@ -23,6 +23,7 @@ import {
   mapAdminStatusToIsActive,
   mapApiUserToAdminUser,
   sortAdminUsers,
+  type AdminUserFormData,
   type AdminUserSortDirection,
   type AdminUserSortKey,
   type UserApiResponse,
@@ -306,7 +307,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleSaveUser = async (data: Partial<AdminUser>) => {
+  const handleSaveUser = async (data: AdminUserFormData) => {
     if (isMutating) return;
 
     setIsMutating(true);

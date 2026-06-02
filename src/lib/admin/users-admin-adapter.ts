@@ -49,6 +49,12 @@ export type AdminUserSortKey =
 
 export type AdminUserSortDirection = "asc" | "desc";
 
+export type AdminUserFormData = Partial<AdminUser> & {
+  useAutoPassword?: boolean;
+  password?: string;
+  confirmPassword?: string;
+};
+
 export type AdminUserFormPayload = {
   name: string;
   email: string;
@@ -111,9 +117,10 @@ export function mapAdminStatusToIsActive(status?: AdminUserStatus) {
 }
 
 export function buildCreateUserPayload(
-  data: Partial<AdminUser>
+  data: AdminUserFormData
 ): AdminUserFormPayload {
   const role = mapAdminRoleToApiRole(data.role ?? "Mahasiswa");
+  const useAutoPassword = data.useAutoPassword ?? true;
 
   return {
     name: data.name?.trim() ?? "",
@@ -122,11 +129,13 @@ export function buildCreateUserPayload(
     identifier: data.identityNo?.trim() ?? "",
     phoneNumber: data.phone?.trim() || null,
     avatarUrl: null,
-    password: "password123",
+    password: useAutoPassword
+      ? "password123"
+      : data.password?.trim() || "password123",
   };
 }
 
-export function buildUpdateUserPayload(data: Partial<AdminUser>) {
+export function buildUpdateUserPayload(data: AdminUserFormData) {
   return {
     name: data.name?.trim() ?? "",
     email: data.email?.trim() ?? "",

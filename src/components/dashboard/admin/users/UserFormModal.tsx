@@ -1,26 +1,40 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, Key, Shield, X } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  LockKeyhole,
+  Mail,
+  Send,
+  Shield,
+  Sparkles,
+  X,
+} from "lucide-react";
 
 import type { AdminUser } from "@/data/learning/admin/admin-users";
+import type { AdminUserFormData } from "@/lib/admin/users-admin-adapter";
 
 interface UserFormModalProps {
   mode: "add" | "edit";
   user?: AdminUser;
   onClose: () => void;
-  onSave: (data: Partial<AdminUser>) => void;
+  onSave: (data: AdminUserFormData) => void;
 }
 
 function Field({
   label,
   required,
   children,
+  hint,
 }: {
   label: string;
   required?: boolean;
   children: ReactNode;
+  hint?: string;
 }) {
   return (
     <div>
@@ -29,18 +43,22 @@ function Field({
       </label>
 
       {children}
+
+      {hint && (
+        <p className="mt-1.5 text-[11px] font-medium leading-relaxed text-muted-foreground">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
 
-function getInitialForm(user?: AdminUser): Partial<AdminUser> {
+function getInitialForm(user?: AdminUser): AdminUserFormData {
   return (
     user ?? {
       name: "",
       email: "",
       phone: "",
-      institution: "Universitas Singaperbangsa Karawang",
-      gender: "Perempuan",
       status: "Aktif",
       modules: 0,
       avgScore: 0,
@@ -51,15 +69,18 @@ function getInitialForm(user?: AdminUser): Partial<AdminUser> {
         month: "short",
         year: "numeric",
       }),
+      useAutoPassword: true,
+      password: "",
+      confirmPassword: "",
     }
   );
 }
 
 const inputClassName =
-  "w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-medium text-foreground placeholder:text-muted-foreground transition-all";
+  "w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-medium text-foreground placeholder:text-muted-foreground transition-all disabled:opacity-60 disabled:cursor-not-allowed";
 
 const selectClassName =
-  "w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-foreground cursor-pointer transition-all";
+  "w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-foreground cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed";
 
 export function UserFormModal({
   mode,
@@ -68,12 +89,54 @@ export function UserFormModal({
   onSave,
 }: UserFormModalProps) {
   const [mounted, setMounted] = useState(false);
-  const [form, setForm] = useState<Partial<AdminUser>>(() =>
+  const [form, setForm] = useState<AdminUserFormData>(() =>
     getInitialForm(user)
   );
-  const [generatePassword, setGeneratePassword] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [resetStatus, setResetStatus] = useState<"idle" | "sent">("idle");
+  const [resetStatus, setResetStatus] = useState<"idle" | "ready">("idle");
+
+  const isAddMode = mode === "add";
+  const useAutoPassword = form.useAutoPassword ?? true;
+  const password = form.password ?? "";
+  const confirmPassword = form.confirmPassword ?? "";
+
+  const emailPlaceholder =
+    form.role === "Dosen"
+      ? "nama@staff.unsika.ac.id"
+      : "npm@student.unsika.ac.id";
+
+  const identityLabel =
+    form.role === "Dosen" ? "NIDN / NIP" : "NPM Mahasiswa";
+
+  const identityHint =
+    form.role === "Dosen"
+      ? "Gunakan NIDN/NIP dosen. Email dosen wajib memakai domain @staff.unsika.ac.id."
+      : "Gunakan NPM mahasiswa. Email mahasiswa harus sesuai format npm@student.unsika.ac.id.";
+
+  const manualPasswordInvalid =
+    isAddMode &&
+    !useAutoPassword &&
+    (password.length < 8 || password !== confirmPassword);
+
+  const canSubmit = useMemo(() => {
+    if (!form.name?.trim()) return false;
+    if (!form.email?.trim()) return false;
+    if (!form.identityNo?.trim()) return false;
+
+    if (isAddMode && !useAutoPassword) {
+      return password.length >= 8 && password === confirmPassword;
+    }
+
+    return true;
+  }, [
+    form.name,
+    form.email,
+    form.identityNo,
+    isAddMode,
+    useAutoPassword,
+    password,
+    confirmPassword,
+  ]);
 
   useEffect(() => {
     setMounted(true);
@@ -88,22 +151,30 @@ export function UserFormModal({
     };
   }, []);
 
-  const emailPlaceholder =
-    form.role === "Dosen"
-      ? "nama@staff.unsika.ac.id"
-      : "nama@student.unsika.ac.id";
-
-  const identityLabel =
-    form.role === "Dosen"
-      ? "Nomor Induk Dosen (NIDN/NIP)"
-      : "Nomor Induk Mahasiswa (NIM)";
+  const updateForm = (patch: Partial<AdminUserFormData>) => {
+    setForm((current) => ({
+      ...current,
+      ...patch,
+    }));
+  };
 
   const handleSendResetLink = () => {
-    setResetStatus("sent");
+    setResetStatus("ready");
 
     window.setTimeout(() => {
       setResetStatus("idle");
-    }, 2500);
+    }, 3000);
+  };
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+
+    onSave({
+      ...form,
+      useAutoPassword,
+      password: useAutoPassword ? undefined : password,
+      confirmPassword: useAutoPassword ? undefined : confirmPassword,
+    });
   };
 
   if (!mounted) return null;
@@ -121,12 +192,12 @@ export function UserFormModal({
         <div className="p-5 sm:p-6 border-b border-border flex items-center justify-between bg-card shrink-0">
           <div>
             <h2 className="text-lg sm:text-xl font-extrabold text-foreground">
-              {mode === "add" ? "Tambah Pengguna Baru" : "Edit Data Pengguna"}
+              {isAddMode ? "Tambah Pengguna Baru" : "Edit Data Pengguna"}
             </h2>
 
             <p className="text-xs sm:text-sm font-medium text-muted-foreground mt-1 leading-relaxed">
-              {mode === "add"
-                ? "Daftarkan akun dosen atau mahasiswa ke sistem."
+              {isAddMode
+                ? "Daftarkan akun dosen atau mahasiswa ke sistem EduBidan."
                 : "Perbarui informasi identitas dan status akses pengguna."}
             </p>
           </div>
@@ -146,9 +217,7 @@ export function UserFormModal({
             <Field label="Nama Lengkap" required>
               <input
                 value={form.name ?? ""}
-                onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
-                }
+                onChange={(event) => updateForm({ name: event.target.value })}
                 placeholder="Contoh: Sari Dewi"
                 className={inputClassName}
               />
@@ -159,12 +228,14 @@ export function UserFormModal({
                 <select
                   value={form.role ?? "Mahasiswa"}
                   onChange={(event) =>
-                    setForm({
-                      ...form,
+                    updateForm({
                       role: event.target.value as AdminUser["role"],
+                      email: "",
+                      identityNo: "",
                     })
                   }
                   className={`${selectClassName} appearance-none pr-10`}
+                  disabled={!isAddMode}
                 >
                   <option value="Mahasiswa">Mahasiswa</option>
                   <option value="Dosen">Dosen</option>
@@ -177,36 +248,44 @@ export function UserFormModal({
               </div>
             </Field>
 
-            <Field label="Email" required>
+            <Field
+              label="Email"
+              required
+              hint={
+                form.role === "Mahasiswa"
+                  ? "Contoh: 2310631170001@student.unsika.ac.id"
+                  : "Contoh: dosen.kebidanan@staff.unsika.ac.id"
+              }
+            >
               <input
                 type="email"
                 value={form.email ?? ""}
-                onChange={(event) =>
-                  setForm({ ...form, email: event.target.value })
-                }
+                onChange={(event) => updateForm({ email: event.target.value })}
                 placeholder={emailPlaceholder}
                 className={inputClassName}
               />
             </Field>
 
-            <Field label={identityLabel} required>
+            <Field label={identityLabel} required hint={identityHint}>
               <input
                 value={form.identityNo ?? ""}
                 onChange={(event) =>
-                  setForm({ ...form, identityNo: event.target.value })
+                  updateForm({ identityNo: event.target.value })
                 }
-                placeholder="Masukkan nomor identitas"
+                placeholder={
+                  form.role === "Dosen"
+                    ? "Contoh: 0312087701"
+                    : "Contoh: 2310631170001"
+                }
                 className={`${inputClassName} font-mono`}
               />
             </Field>
 
-            <Field label="Institusi / Kampus">
+            <Field label="Nomor Telepon">
               <input
-                value={form.institution ?? ""}
-                onChange={(event) =>
-                  setForm({ ...form, institution: event.target.value })
-                }
-                placeholder="Nama kampus asal"
+                value={form.phone ?? ""}
+                onChange={(event) => updateForm({ phone: event.target.value })}
+                placeholder="Contoh: 081234567890"
                 className={inputClassName}
               />
             </Field>
@@ -215,8 +294,7 @@ export function UserFormModal({
               <select
                 value={form.status ?? "Aktif"}
                 onChange={(event) =>
-                  setForm({
-                    ...form,
+                  updateForm({
                     status: event.target.value as AdminUser["status"],
                   })
                 }
@@ -228,81 +306,146 @@ export function UserFormModal({
             </Field>
           </div>
 
-          {mode === "add" && (
+          {isAddMode && (
             <div className="rounded-2xl border border-border p-5 bg-card shadow-sm relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
 
-              <div className="flex items-center gap-2 mb-4">
-                <Key size={18} className="text-amber-500" />
+              <div className="flex items-start gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <KeyRound size={18} />
+                </div>
 
-                <span className="text-sm font-extrabold text-foreground">
-                  Kredensial Login
-                </span>
+                <div>
+                  <p className="text-sm font-extrabold text-foreground">
+                    Kredensial Login
+                  </p>
+
+                  <p className="text-xs sm:text-sm text-muted-foreground font-medium leading-relaxed mt-1">
+                    Atur password awal untuk akun baru. Pengiriman email akan
+                    dapat diaktifkan setelah service email tersedia.
+                  </p>
+                </div>
               </div>
 
-              <label className="flex items-start gap-3 text-sm font-medium text-muted-foreground mb-4 cursor-pointer hover:text-foreground transition-colors">
-                <input
-                  type="checkbox"
-                  checked={generatePassword}
-                  onChange={(event) =>
-                    setGeneratePassword(event.target.checked)
-                  }
-                  className="w-4 h-4 mt-0.5 rounded border-border text-amber-500 focus:ring-amber-500 bg-card"
-                />
+              <button
+                type="button"
+                onClick={() =>
+                  updateForm({
+                    useAutoPassword: !useAutoPassword,
+                    password: "",
+                    confirmPassword: "",
+                  })
+                }
+                className="w-full flex items-start gap-3 rounded-2xl border border-border bg-muted/20 p-4 text-left hover:bg-muted/40 transition-colors"
+              >
+                <span
+                  className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                    useAutoPassword
+                      ? "bg-primary border-primary"
+                      : "border-muted-foreground/40 bg-transparent"
+                  }`}
+                >
+                  {useAutoPassword && (
+                    <CheckCircle2 size={14} className="text-primary-foreground" />
+                  )}
+                </span>
 
-                <span>Buat kata sandi otomatis dan kirim melalui email</span>
-              </label>
+                <span>
+                  <span className="block text-sm font-extrabold text-foreground">
+                    Buat password otomatis
+                  </span>
 
-              {!generatePassword && (
-                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                  <label className="text-xs font-bold text-muted-foreground mb-2 block uppercase tracking-wider">
-                    Kata Sandi Manual
-                  </label>
+                  <span className="block text-xs sm:text-sm text-muted-foreground font-medium leading-relaxed mt-1">
+                    Sistem memakai password awal{" "}
+                    <span className="font-mono font-extrabold text-foreground">
+                      password123
+                    </span>
+                    . Nantinya informasi akun bisa dikirim melalui email.
+                  </span>
+                </span>
+              </button>
 
-                  <div className="relative">
+              {!useAutoPassword && (
+                <div className="mt-5 grid sm:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <Field label="Password Manual" required>
+                    <div className="relative">
+                      <LockKeyhole
+                        size={16}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                      />
+
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(event) =>
+                          updateForm({ password: event.target.value })
+                        }
+                        placeholder="Minimal 8 karakter"
+                        className={`${inputClassName} pl-11 pr-11`}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((current) => !current)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={
+                          showPassword
+                            ? "Sembunyikan password"
+                            : "Tampilkan password"
+                        }
+                      >
+                        {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    </div>
+                  </Field>
+
+                  <Field label="Konfirmasi Password" required>
                     <input
                       type={showPassword ? "text" : "password"}
-                      placeholder="Minimal 8 karakter..."
-                      className="w-full px-4 py-3 pr-24 rounded-xl bg-card border border-border outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-sm font-medium text-foreground placeholder:text-muted-foreground transition-all"
+                      value={confirmPassword}
+                      onChange={(event) =>
+                        updateForm({ confirmPassword: event.target.value })
+                      }
+                      placeholder="Ulangi password"
+                      className={inputClassName}
                     />
 
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-extrabold text-amber-500 hover:text-amber-600 transition-colors"
-                    >
-                      {showPassword ? "SEMBUNYIKAN" : "TAMPILKAN"}
-                    </button>
-                  </div>
+                    {manualPasswordInvalid && (
+                      <p className="mt-1.5 text-[11px] font-bold text-red-500">
+                        Password minimal 8 karakter dan konfirmasi harus sama.
+                      </p>
+                    )}
+                  </Field>
                 </div>
               )}
             </div>
           )}
 
-          {mode === "edit" && (
+          {!isAddMode && (
             <div className="rounded-2xl border border-border p-5 bg-card shadow-sm relative overflow-hidden">
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-                    <Key size={18} />
+                    <Send size={18} />
                   </div>
 
                   <div>
                     <p className="text-sm font-extrabold text-foreground">
-                      Reset Kata Sandi
+                      Reset Password via Email
                     </p>
 
                     <p className="text-xs sm:text-sm text-muted-foreground font-medium leading-relaxed mt-1">
-                      Kirim tautan reset kata sandi ke email pengguna tanpa
-                      mengubah data profil.
+                      Nantinya sistem akan mengirim tautan atau OTP reset
+                      password ke email pengguna.
                     </p>
 
-                    {resetStatus === "sent" && (
-                      <div className="mt-3 flex items-center gap-2 text-xs font-bold text-emerald-600">
-                        <CheckCircle2 size={15} />
-                        Link reset kata sandi berhasil dikirim.
+                    {resetStatus === "ready" && (
+                      <div className="mt-3 flex items-center gap-2 text-xs font-bold text-amber-600">
+                        <Sparkles size={15} />
+                        Flow email reset password akan diaktifkan pada tahap
+                        integrasi email service.
                       </div>
                     )}
                   </div>
@@ -311,9 +454,10 @@ export function UserFormModal({
                 <button
                   type="button"
                   onClick={handleSendResetLink}
-                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20 text-xs sm:text-sm font-extrabold hover:bg-amber-500 hover:text-white transition-colors whitespace-nowrap"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20 text-xs sm:text-sm font-extrabold hover:bg-amber-500 hover:text-white transition-colors whitespace-nowrap"
                 >
-                  Kirim Link Reset
+                  <Mail size={16} />
+                  Siapkan Reset Email
                 </button>
               </div>
             </div>
@@ -331,10 +475,11 @@ export function UserFormModal({
 
           <button
             type="button"
-            onClick={() => onSave(form)}
-            className="flex-1 py-3.5 rounded-xl bg-primary text-primary-foreground text-sm font-extrabold hover:bg-primary/90 transition-all hover:-translate-y-0.5 shadow-md shadow-primary/20"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="flex-1 py-3.5 rounded-xl bg-primary text-primary-foreground text-sm font-extrabold hover:bg-primary/90 transition-all hover:-translate-y-0.5 shadow-md shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
           >
-            {mode === "add" ? "Daftarkan Pengguna" : "Simpan Perubahan"}
+            {isAddMode ? "Daftarkan Pengguna" : "Simpan Perubahan"}
           </button>
         </div>
       </div>
