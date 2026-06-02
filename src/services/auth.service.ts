@@ -421,31 +421,31 @@ export async function registerMahasiswa(params: {
   });
 
   const emailResult = await sendRegisterSuccessEmail({
-  to: email,
-  name,
-  email,
-});
+    to: email,
+    name,
+    email,
+  });
 
-return {
-  success: true,
-  user,
-  email: emailResult.success
-    ? emailResult.skipped
-      ? {
-          sent: false,
-          skipped: true,
-          error: null,
-        }
+  return {
+    success: true,
+    user,
+    email: emailResult.success
+      ? emailResult.skipped
+        ? {
+            sent: false,
+            skipped: true,
+            error: null,
+          }
+        : {
+            sent: true,
+            skipped: false,
+            error: null,
+          }
       : {
-          sent: true,
+          sent: false,
           skipped: false,
-          error: null,
-        }
-    : {
-        sent: false,
-        skipped: false,
-        error: emailResult.error,
-      },
-  error: null,
- };
+          error: emailResult.error,
+        },
+    error: null,
+  };
 }
