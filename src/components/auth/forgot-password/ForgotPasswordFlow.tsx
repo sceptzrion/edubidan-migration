@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AuthShell } from "@/components/auth/shared/AuthShell";
@@ -25,6 +25,8 @@ type ForgotPasswordApiResponse = {
     };
   };
 };
+
+const RESEND_COOLDOWN_SECONDS = 60;
 
 function getFriendlyForgotPasswordError(message: string) {
   const messages: Record<string, string> = {
@@ -58,16 +60,48 @@ export function ForgotPasswordFlow() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [toast, setToast] = useState<AppToastState>(null);
 
+  const toastTimeoutRef = useRef<number | null>(null);
   const otpCode = otp.join("");
 
   const showToast = useCallback((nextToast: NonNullable<AppToastState>) => {
+    if (toastTimeoutRef.current !== null) {
+      window.clearTimeout(toastTimeoutRef.current);
+    }
+
     setToast(nextToast);
 
-    window.setTimeout(() => {
+    toastTimeoutRef.current = window.setTimeout(() => {
       setToast(null);
+      toastTimeoutRef.current = null;
     }, 3500);
+  }, []);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined;
+
+    const interval = window.setInterval(() => {
+      setResendCooldown((current) => {
+        if (current <= 1) {
+          window.clearInterval(interval);
+          return 0;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [resendCooldown]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current !== null) {
+        window.clearTimeout(toastTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleBack = () => {
@@ -129,12 +163,16 @@ export function ForgotPasswordFlow() {
       }
 
       showToast({
-        type: emailMeta && !emailMeta.sent && !emailMeta.skipped ? "warning" : "success",
+        type:
+          emailMeta && !emailMeta.sent && !emailMeta.skipped
+            ? "warning"
+            : "success",
         title: "Kode OTP berhasil diproses",
         message,
       });
 
       setOtp(["", "", "", ""]);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
       setStep("otp");
     } catch (error) {
       console.error("Request OTP error:", error);
@@ -248,6 +286,8 @@ export function ForgotPasswordFlow() {
   };
 
   const resendOtp = async () => {
+    if (resendCooldown > 0 || isSubmitting) return;
+
     await requestOtp();
   };
 
@@ -275,6 +315,7 @@ export function ForgotPasswordFlow() {
           email={email}
           otp={otp}
           isSubmitting={isSubmitting}
+          resendCooldown={resendCooldown}
           onOtpChange={setOtp}
           onSubmit={verifyOtp}
           onResend={resendOtp}

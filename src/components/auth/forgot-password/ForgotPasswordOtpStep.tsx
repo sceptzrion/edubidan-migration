@@ -1,12 +1,13 @@
 "use client";
 
 import { useRef } from "react";
-import { KeyRound, Loader2 } from "lucide-react";
+import { KeyRound, Loader2, RotateCcw } from "lucide-react";
 
 interface ForgotPasswordOtpStepProps {
   email: string;
   otp: string[];
   isSubmitting: boolean;
+  resendCooldown: number;
   onOtpChange: (otp: string[]) => void;
   onSubmit: () => void;
   onResend: () => void;
@@ -16,6 +17,7 @@ export function ForgotPasswordOtpStep({
   email,
   otp,
   isSubmitting,
+  resendCooldown,
   onOtpChange,
   onSubmit,
   onResend,
@@ -23,6 +25,7 @@ export function ForgotPasswordOtpStep({
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const isOtpComplete = otp.every((digit) => digit.trim().length === 1);
+  const canResend = resendCooldown <= 0 && !isSubmitting;
 
   const handleChange = (index: number, value: string) => {
     if (isSubmitting) return;
@@ -108,17 +111,28 @@ export function ForgotPasswordOtpStep({
         {isSubmitting ? "Memverifikasi..." : "Verifikasi Kode"}
       </button>
 
-      <p className="text-center text-sm text-muted-foreground mt-6">
-        Tidak menerima kode?{" "}
+      <div className="mt-6 rounded-2xl p-4 text-center">
+        <p className="text-sm text-muted-foreground">
+          Tidak menerima kode?
+        </p>
+
         <button
           type="button"
           onClick={onResend}
-          disabled={isSubmitting}
-          className="text-primary font-bold hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={!canResend}
+          className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent"
         >
-          Kirim ulang
+          {isSubmitting ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <RotateCcw size={16} />
+          )}
+
+          {resendCooldown > 0
+            ? `Kirim ulang dalam ${resendCooldown} detik`
+            : "Kirim ulang kode"}
         </button>
-      </p>
+      </div>
     </div>
   );
 }
