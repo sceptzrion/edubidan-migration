@@ -1,51 +1,54 @@
-"use client";
+import { Role } from "@prisma/client";
+import { notFound } from "next/navigation";
 
-import { useParams } from "next/navigation";
-import { useState } from "react";
+import { LecturerModuleDetailClient } from "@/components/dashboard/lecturer/modules/detail/LecturerModuleDetailClient";
+import { getLecturerModuleDetailData } from "@/data/learning/lecturer/lecturer-module-detail";
+import { requireRole } from "@/lib/auth/guards";
 
-import { EditInfoModal } from "@/components/dashboard/lecturer/modules/detail/EditInfoModal";
-import { LecturerModuleDetailHeader } from "@/components/dashboard/lecturer/modules/detail/LecturerModuleDetailHeader";
-import { ParticipantsTab } from "@/components/dashboard/lecturer/modules/detail/ParticipantsTab";
-import { PlaylistTab } from "@/components/dashboard/lecturer/modules/detail/PlaylistTab";
-import { LecturerModuleBackButton } from "@/components/dashboard/lecturer/modules/detail/layout/LecturerModuleBackButton";
-import {
-  LecturerModuleDetailTabs,
-  type LecturerModuleDetailTab,
-} from "@/components/dashboard/lecturer/modules/detail/layout/LecturerModuleDetailTabs";
-import { lecturerModuleDetailInfo } from "@/data/learning/lecturer/lecturer-module-detail";
+type LecturerModuleEditorPageProps = {
+  params: Promise<{
+    id: string;
+  }>;
+};
 
-export default function LecturerModuleEditorPage() {
-  const params = useParams<{ id: string }>();
-  const moduleId = params.id;
+function parseModuleId(value: string) {
+  const moduleId = Number(value);
 
-  const [tab, setTab] = useState<LecturerModuleDetailTab>("materi");
-  const [info, setInfo] = useState(lecturerModuleDetailInfo);
-  const [editInfoOpen, setEditInfoOpen] = useState(false);
+  if (!Number.isInteger(moduleId) || moduleId <= 0) {
+    return null;
+  }
+
+  return moduleId;
+}
+
+export default async function LecturerModuleEditorPage({
+  params,
+}: LecturerModuleEditorPageProps) {
+  const currentUser = await requireRole("/dashboard/lecturer/modules", [
+    Role.DOSEN,
+  ]);
+
+  const { id } = await params;
+  const moduleId = parseModuleId(id);
+
+  if (!moduleId || !currentUser.dosenProfile?.id) {
+    notFound();
+  }
+
+  const detailData = await getLecturerModuleDetailData(
+    moduleId,
+    currentUser.dosenProfile.id
+  );
+
+  if (!detailData) {
+    notFound();
+  }
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10 sm:pb-12">
-      <LecturerModuleBackButton />
-
-      <LecturerModuleDetailHeader
-        info={info}
-        onEditClick={() => setEditInfoOpen(true)}
-      />
-
-      <LecturerModuleDetailTabs activeTab={tab} onTabChange={setTab} />
-
-      {tab === "materi" && <PlaylistTab moduleId={moduleId} />}
-      {tab === "peserta" && <ParticipantsTab />}
-
-      {editInfoOpen && (
-        <EditInfoModal
-          info={info}
-          onSave={(value) => {
-            setInfo(value);
-            setEditInfoOpen(false);
-          }}
-          onClose={() => setEditInfoOpen(false)}
-        />
-      )}
-    </div>
+    <LecturerModuleDetailClient
+      moduleId={String(moduleId)}
+      initialInfo={detailData.info}
+      initialPlaylistItems={detailData.playlistItems}
+    />
   );
 }

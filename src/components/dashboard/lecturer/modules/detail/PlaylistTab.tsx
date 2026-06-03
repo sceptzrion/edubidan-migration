@@ -18,11 +18,13 @@ import { KuisModal } from "@/components/dashboard/lecturer/modules/detail/quiz/K
 
 interface PlaylistTabProps {
   moduleId: string;
+  initialItems: LecturerPlaylistItem[];
 }
 
 export type LecturerMateriItem = {
   kind: "materi";
   id: number;
+  contentId?: number;
   title: string;
   videoSource: "upload" | "embed";
   videoUrl?: string;
@@ -48,51 +50,18 @@ export type LecturerQuizQuestion = {
 export type LecturerKuisItem = {
   kind: "kuis";
   id: number;
+  contentId?: number;
   title: string;
   description?: string;
   hasTimeLimit: boolean;
   timeLimitMinutes: number;
   questions: LecturerQuizQuestion[];
+  questionCount?: number;
 };
 
 export type LecturerPlaylistItem = LecturerMateriItem | LecturerKuisItem;
 
-const initialItems: LecturerPlaylistItem[] = [
-  {
-    kind: "materi",
-    id: 1,
-    title: "Pengantar ANC Terpadu",
-    videoSource: "embed",
-    duration: "12:30",
-    summary: "Pelajari teknik pemeriksaan fisik menyeluruh pada ibu hamil...",
-    objectives: [
-      "Mampu melakukan pemeriksaan fisik",
-      "Mengidentifikasi tanda abnormal",
-    ],
-    tools: ["Stetoskop", "Tensimeter"],
-  },
-  {
-    kind: "kuis",
-    id: 2,
-    title: "Kuis Cek Pemahaman",
-    hasTimeLimit: true,
-    timeLimitMinutes: 10,
-    questions: [
-      {
-        id: 1,
-        questionText: "Berapa kali minimal kunjungan ANC?",
-        mediaUrl: null,
-        options: [
-          { id: 1, text: "4 Kali" },
-          { id: 2, text: "6 Kali" },
-        ],
-        correctOptionId: 2,
-      },
-    ],
-  },
-];
-
-export function PlaylistTab({ moduleId }: PlaylistTabProps) {
+export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
   const router = useRouter();
 
   const [items, setItems] = useState<LecturerPlaylistItem[]>(initialItems);
@@ -126,6 +95,7 @@ export function PlaylistTab({ moduleId }: PlaylistTabProps) {
             ? {
                 ...materi,
                 id: editingMateri.id,
+                contentId: editingMateri.contentId,
               }
             : item
         );
@@ -152,6 +122,7 @@ export function PlaylistTab({ moduleId }: PlaylistTabProps) {
             ? {
                 ...kuis,
                 id: editingKuis.id,
+                contentId: editingKuis.contentId,
               }
             : item
         );
@@ -269,10 +240,12 @@ export function PlaylistTab({ moduleId }: PlaylistTabProps) {
       <div className="space-y-3 sm:space-y-4">
         {items.map((item, index) => {
           const isMateri = item.kind === "materi";
+          const questionCount =
+            item.kind === "kuis" ? item.questionCount ?? item.questions.length : 0;
 
           return (
             <div
-              key={item.id}
+              key={`${item.kind}-${item.id}`}
               draggable
               onDragStart={() => setDragIndex(index)}
               onDragOver={(event) => event.preventDefault()}
@@ -330,7 +303,7 @@ export function PlaylistTab({ moduleId }: PlaylistTabProps) {
                           ? "Upload Video"
                           : "Embed YouTube"
                       } • Durasi: ${item.duration || "--:--"}`
-                    : `${item.questions.length} soal ${
+                    : `${questionCount} soal ${
                         item.hasTimeLimit
                           ? `• Waktu: ${item.timeLimitMinutes} menit`
                           : "• Tanpa batas waktu"
@@ -388,7 +361,11 @@ export function PlaylistTab({ moduleId }: PlaylistTabProps) {
                   onClick={() =>
                     setItems((currentItems) =>
                       currentItems.filter(
-                        (currentItem) => currentItem.id !== item.id
+                        (currentItem) =>
+                          !(
+                            currentItem.id === item.id &&
+                            currentItem.kind === item.kind
+                          )
                       )
                     )
                   }
