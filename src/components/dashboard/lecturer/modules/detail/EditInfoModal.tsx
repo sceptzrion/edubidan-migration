@@ -1,19 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useIsClient } from "@/hooks/useIsClient";
-import { Save, X } from "lucide-react";
 import { createPortal } from "react-dom";
+import { Loader2, Save, X } from "lucide-react";
 
+import { useIsClient } from "@/hooks/useIsClient";
 import type { LecturerModuleDetailInfo } from "@/data/learning/lecturer/lecturer-module-detail";
 
 interface EditInfoModalProps {
   info: LecturerModuleDetailInfo;
+  isSaving?: boolean;
   onSave: (value: LecturerModuleDetailInfo) => void;
   onClose: () => void;
 }
 
-export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
+export function EditInfoModal({
+  info,
+  isSaving = false,
+  onSave,
+  onClose,
+}: EditInfoModalProps) {
   const mounted = useIsClient();
   const [form, setForm] = useState<LecturerModuleDetailInfo>(info);
   const [objectiveText, setObjectiveText] = useState(info.objectives.join("\n"));
@@ -28,6 +34,8 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
   }, []);
 
   const handleSave = () => {
+    if (isSaving) return;
+
     const objectives = objectiveText
       .split("\n")
       .map((item) => item.trim())
@@ -45,7 +53,7 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
     <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6">
       <button
         type="button"
-        onClick={onClose}
+        onClick={isSaving ? undefined : onClose}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
         aria-label="Tutup modal edit informasi modul"
       />
@@ -64,7 +72,8 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            disabled={isSaving}
+            className="p-2 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Tutup"
           >
             <X size={20} />
@@ -85,7 +94,8 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
               onChange={(event) =>
                 setForm({ ...form, title: event.target.value })
               }
-              className="w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-foreground"
+              disabled={isSaving}
+              className="w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-foreground disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
@@ -103,7 +113,8 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
                 setForm({ ...form, description: event.target.value })
               }
               rows={4}
-              className="w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-medium text-foreground resize-none leading-relaxed"
+              disabled={isSaving}
+              className="w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-medium text-foreground resize-none leading-relaxed disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
@@ -120,9 +131,13 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
               onChange={(event) =>
                 setForm({ ...form, estimatedTime: event.target.value })
               }
-              placeholder="Contoh: 6 Jam"
-              className="w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-foreground"
+              placeholder="Contoh: 6 Jam atau 120 Menit"
+              disabled={isSaving}
+              className="w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-foreground disabled:cursor-not-allowed disabled:opacity-60"
             />
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 font-medium">
+              Bisa ditulis seperti 90 Menit, 2 Jam, atau 2 Jam 30 Menit.
+            </p>
           </div>
 
           <div>
@@ -137,7 +152,8 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
               value={objectiveText}
               onChange={(event) => setObjectiveText(event.target.value)}
               rows={5}
-              className="w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-medium text-foreground resize-none leading-relaxed"
+              disabled={isSaving}
+              className="w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-medium text-foreground resize-none leading-relaxed disabled:cursor-not-allowed disabled:opacity-60"
               placeholder="Tulis satu tujuan pembelajaran per baris"
             />
             <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 font-medium">
@@ -159,7 +175,8 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
                     key={status}
                     type="button"
                     onClick={() => setForm({ ...form, status })}
-                    className={`flex-1 py-3 rounded-xl border-2 text-sm font-extrabold transition-all ${
+                    disabled={isSaving}
+                    className={`flex-1 py-3 rounded-xl border-2 text-sm font-extrabold transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
                       isActive
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border bg-card text-muted-foreground hover:bg-muted"
@@ -177,7 +194,8 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 rounded-xl border border-border text-xs sm:text-sm font-bold text-foreground hover:bg-muted transition-colors"
+            disabled={isSaving}
+            className="flex-1 py-3 rounded-xl border border-border text-xs sm:text-sm font-bold text-foreground hover:bg-muted transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
             Batal
           </button>
@@ -185,10 +203,15 @@ export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
           <button
             type="button"
             onClick={handleSave}
-            className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-extrabold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+            disabled={isSaving}
+            className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-extrabold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Save size={17} />
-            Simpan Perubahan
+            {isSaving ? (
+              <Loader2 size={17} className="animate-spin" />
+            ) : (
+              <Save size={17} />
+            )}
+            {isSaving ? "Menyimpan..." : "Simpan Perubahan"}
           </button>
         </div>
       </div>

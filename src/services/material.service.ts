@@ -1,4 +1,4 @@
-import { ContentType, Prisma } from "@prisma/client";
+import { ContentType, Prisma, VideoSource } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
@@ -74,6 +74,7 @@ const materialDetailSelect = {
           title: true,
           accessCode: true,
           status: true,
+          dosenProfileId: true,
         },
       },
     },
@@ -157,6 +158,70 @@ function mapModuleContent(content: ModuleContentItem) {
   };
 }
 
+function normalizeRequiredString(value: unknown) {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeOptionalString(value: unknown) {
+  if (typeof value !== "string") return undefined;
+
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeStringList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeEstimatedMinutes(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const estimatedMinutes = Number(value);
+
+  if (!Number.isInteger(estimatedMinutes) || estimatedMinutes <= 0) {
+    return null;
+  }
+
+  return estimatedMinutes;
+}
+
+function normalizeVideoSource(value: unknown) {
+  if (value === "upload" || value === VideoSource.UPLOAD) {
+    return VideoSource.UPLOAD;
+  }
+
+  if (value === "embed" || value === VideoSource.EMBED) {
+    return VideoSource.EMBED;
+  }
+
+  return null;
+}
+
+async function getNextContentOrder(moduleId: number) {
+  const aggregate = await prisma.moduleContent.aggregate({
+    where: {
+      moduleId,
+    },
+    _max: {
+      order: true,
+    },
+  });
+
+  return (aggregate._max.order ?? 0) + 1;
+}
+
 export async function getModuleContents(moduleId: number) {
   const moduleData = await prisma.module.findUnique({
     where: {
@@ -195,6 +260,317 @@ export async function getMaterialById(id: number) {
     },
     select: materialDetailSelect,
   });
+}
+
+export type CreateMaterialResult =
+  | {
+      success: true;
+      material: Awaited<ReturnType<typeof getMaterialById>>;
+      error: null;
+    }
+  | {
+      success: false;
+      material: null;
+      error:
+        | "MODULE_NOT_FOUND"
+        | "TITLE_REQUIRED"
+        | "VIDEO_SOURCE_INVALID"
+        | "ESTIMATED_MINUTES_INVALID";
+    };
+
+export async function createMaterial(params: {
+  moduleId: number;
+  title: unknown;
+  description?: unknown;
+  videoSource: unknown;
+  videoUrl?: unknown;
+  estimatedMinutes?: unknown;
+  objectives?: unknown;
+  tools?: unknown;
+}): Promise<CreateMaterialResult> {
+  const moduleData = await prisma.module.findUnique({
+    where: {
+      id: params.moduleId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!moduleData) {
+    return {
+      success: false,
+      material: null,
+      error: "MODULE_NOT_FOUND",
+    };
+  }
+
+  const title = normalizeRequiredString(params.title);
+  const description = normalizeOptionalString(params.description);
+  const videoSource = normalizeVideoSource(params.videoSource);
+  const videoUrl = normalizeOptionalString(params.videoUrl);
+  const estimatedMinutes = normalizeEstimatedMinutes(params.estimatedMinutes);
+  const objectives = normalizeStringList(params.objectives);
+  const tools = normalizeStringList(params.tools);
+
+  if (!title) {
+    return {
+      success: false,
+      material: null,
+      error: "TITLE_REQUIRED",
+    };
+  }
+
+  if (!videoSource) {
+    return {
+      success: false,
+      material: null,
+      error: "VIDEO_SOURCE_INVALID",
+    };
+  }
+
+  if (params.estimatedMinutes !== undefined && estimatedMinutes === null) {
+    return {
+      success: false,
+      material: null,
+      error: "ESTIMATED_MINUTES_INVALID",
+    };
+  }
+
+  const order = await getNextContentOrder(params.moduleId);
+
+  const createdContent = await prisma.moduleContent.create({
+    data: {
+      moduleId: params.moduleId,
+      kind: ContentType.MATERI,
+      order,
+      materi: {
+        create: {
+          title,
+          description,
+          videoSource,
+          videoUrl,
+          estimatedMinutes,
+          objectives: {
+            create: objectives.map((text, index) => ({
+              text,
+              order: index + 1,
+            })),
+          },
+          tools: {
+            create: tools.map((name) => ({
+              name,
+            })),
+          },
+        },
+      },
+    },
+    select: {
+      materi: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!createdContent.materi) {
+    return {
+      success: false,
+      material: null,
+      error: "MODULE_NOT_FOUND",
+    };
+  }
+
+  const material = await getMaterialById(createdContent.materi.id);
+
+  return {
+    success: true,
+    material,
+    error: null,
+  };
+}
+
+export type UpdateMaterialResult =
+  | {
+      success: true;
+      material: Awaited<ReturnType<typeof getMaterialById>>;
+      error: null;
+    }
+  | {
+      success: false;
+      material: null;
+      error:
+        | "MATERIAL_NOT_FOUND"
+        | "TITLE_REQUIRED"
+        | "VIDEO_SOURCE_INVALID"
+        | "ESTIMATED_MINUTES_INVALID";
+    };
+
+export async function updateMaterial(params: {
+  id: number;
+  title?: unknown;
+  description?: unknown;
+  videoSource?: unknown;
+  videoUrl?: unknown;
+  estimatedMinutes?: unknown;
+  objectives?: unknown;
+  tools?: unknown;
+}): Promise<UpdateMaterialResult> {
+  const existingMaterial = await prisma.materi.findUnique({
+    where: {
+      id: params.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existingMaterial) {
+    return {
+      success: false,
+      material: null,
+      error: "MATERIAL_NOT_FOUND",
+    };
+  }
+
+  const data: Prisma.MateriUpdateInput = {};
+
+  if (params.title !== undefined) {
+    const title = normalizeRequiredString(params.title);
+
+    if (!title) {
+      return {
+        success: false,
+        material: null,
+        error: "TITLE_REQUIRED",
+      };
+    }
+
+    data.title = title;
+  }
+
+  if (params.description !== undefined) {
+    data.description = normalizeOptionalString(params.description);
+  }
+
+  if (params.videoSource !== undefined) {
+    const videoSource = normalizeVideoSource(params.videoSource);
+
+    if (!videoSource) {
+      return {
+        success: false,
+        material: null,
+        error: "VIDEO_SOURCE_INVALID",
+      };
+    }
+
+    data.videoSource = videoSource;
+  }
+
+  if (params.videoUrl !== undefined) {
+    data.videoUrl = normalizeOptionalString(params.videoUrl);
+  }
+
+  if (params.estimatedMinutes !== undefined) {
+    const estimatedMinutes = normalizeEstimatedMinutes(params.estimatedMinutes);
+
+    if (estimatedMinutes === null) {
+      return {
+        success: false,
+        material: null,
+        error: "ESTIMATED_MINUTES_INVALID",
+      };
+    }
+
+    data.estimatedMinutes = estimatedMinutes;
+  }
+
+  if (params.objectives !== undefined) {
+    const objectives = normalizeStringList(params.objectives);
+
+    data.objectives = {
+      deleteMany: {},
+      create: objectives.map((text, index) => ({
+        text,
+        order: index + 1,
+      })),
+    };
+  }
+
+  if (params.tools !== undefined) {
+    const tools = normalizeStringList(params.tools);
+
+    data.tools = {
+      deleteMany: {},
+      create: tools.map((name) => ({
+        name,
+      })),
+    };
+  }
+
+  await prisma.materi.update({
+    where: {
+      id: params.id,
+    },
+    data,
+  });
+
+  const material = await getMaterialById(params.id);
+
+  return {
+    success: true,
+    material,
+    error: null,
+  };
+}
+
+export type DeleteMaterialResult =
+  | {
+      success: true;
+      deletedMaterialId: number;
+      deletedContentId: number;
+      error: null;
+    }
+  | {
+      success: false;
+      deletedMaterialId: null;
+      deletedContentId: null;
+      error: "MATERIAL_NOT_FOUND";
+    };
+
+export async function deleteMaterial(id: number): Promise<DeleteMaterialResult> {
+  const material = await prisma.materi.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      id: true,
+      contentId: true,
+    },
+  });
+
+  if (!material) {
+    return {
+      success: false,
+      deletedMaterialId: null,
+      deletedContentId: null,
+      error: "MATERIAL_NOT_FOUND",
+    };
+  }
+
+  await prisma.moduleContent.delete({
+    where: {
+      id: material.contentId,
+    },
+  });
+
+  return {
+    success: true,
+    deletedMaterialId: material.id,
+    deletedContentId: material.contentId,
+    error: null,
+  };
 }
 
 export type UpdateMaterialProgressResult =

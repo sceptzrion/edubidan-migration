@@ -1,9 +1,13 @@
+import { Role } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  deleteMaterial,
   getMaterialById,
+  updateMaterial,
   updateMaterialProgress,
 } from "@/services/material.service";
+import { getCurrentSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +63,66 @@ function getUpdateProgressStatusCode(
   }
 
   return 400;
+}
+
+function getUpdateMaterialErrorMessage(
+  error: NonNullable<Awaited<ReturnType<typeof updateMaterial>>["error"]>
+) {
+  const messages = {
+    MATERIAL_NOT_FOUND: "Material not found",
+    TITLE_REQUIRED: "Title is required",
+    VIDEO_SOURCE_INVALID: "Video source is invalid",
+    ESTIMATED_MINUTES_INVALID: "Estimated minutes must be a positive integer",
+  };
+
+  return messages[error];
+}
+
+async function ensureLecturerOwnsMaterial(materialId: number) {
+  const currentUser = await getCurrentSessionUser();
+
+  if (!currentUser) {
+    return {
+      success: false as const,
+      status: 401,
+      message: "Authentication required",
+    };
+  }
+
+  if (currentUser.role !== Role.DOSEN) {
+    return {
+      success: false as const,
+      status: 403,
+      message: "Only lecturers can manage materials",
+    };
+  }
+
+  if (!currentUser.dosenProfile?.id) {
+    return {
+      success: false as const,
+      status: 403,
+      message: "Dosen profile not found",
+    };
+  }
+
+  const material = await getMaterialById(materialId);
+
+  if (
+    !material ||
+    material.content.module.dosenProfileId !== currentUser.dosenProfile.id
+  ) {
+    return {
+      success: false as const,
+      status: 404,
+      message: "Material not found or not owned by lecturer",
+    };
+  }
+
+  return {
+    success: true as const,
+    status: 200,
+    message: "OK",
+  };
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -135,31 +199,78 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const body = await request.json();
 
-    const result = await updateMaterialProgress({
-      materiId: materialId,
-      userId: body.userId,
-      isCompleted: body.isCompleted,
+    if (typeof body.isCompleted === "boolean") {
+      const result = await updateMaterialProgress({
+        materiId: materialId,
+        userId: body.userId,
+        isCompleted: body.isCompleted,
+      });
+
+      if (!result.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: getUpdateProgressErrorMessage(result.error),
+            data: null,
+          },
+          {
+            status: getUpdateProgressStatusCode(result.error),
+          }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: result.progress.isCompleted
+          ? "Material marked as completed"
+          : "Material marked as incomplete",
+        data: result.progress,
+      });
+    }
+
+    const ownership = await ensureLecturerOwnsMaterial(materialId);
+
+    if (!ownership.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: ownership.message,
+          data: null,
+        },
+        {
+          status: ownership.status,
+        }
+      );
+    }
+
+    const result = await updateMaterial({
+      id: materialId,
+      title: body.title,
+      description: body.description,
+      videoSource: body.videoSource,
+      videoUrl: body.videoUrl,
+      estimatedMinutes: body.estimatedMinutes,
+      objectives: body.objectives,
+      tools: body.tools,
     });
 
     if (!result.success) {
       return NextResponse.json(
         {
           success: false,
-          message: getUpdateProgressErrorMessage(result.error),
+          message: getUpdateMaterialErrorMessage(result.error),
           data: null,
         },
         {
-          status: getUpdateProgressStatusCode(result.error),
+          status: result.error === "MATERIAL_NOT_FOUND" ? 404 : 400,
         }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: result.progress.isCompleted
-        ? "Material marked as completed"
-        : "Material marked as incomplete",
-      data: result.progress,
+      message: "Material updated successfully",
+      data: result.material,
     });
   } catch (error) {
     console.error("PATCH /api/materials/[id] error:", error);
@@ -167,7 +278,79 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to update material progress",
+        message: "Failed to update material",
+        data: null,
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+}
+
+export async function DELETE(_request: NextRequest, context: RouteContext) {
+  try {
+    const { id } = await context.params;
+    const materialId = parseMaterialId(id);
+
+    if (!materialId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid material id",
+          data: null,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const ownership = await ensureLecturerOwnsMaterial(materialId);
+
+    if (!ownership.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: ownership.message,
+          data: null,
+        },
+        {
+          status: ownership.status,
+        }
+      );
+    }
+
+    const result = await deleteMaterial(materialId);
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Material not found",
+          data: null,
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Material deleted successfully",
+      data: {
+        id: result.deletedMaterialId,
+        contentId: result.deletedContentId,
+      },
+    });
+  } catch (error) {
+    console.error("DELETE /api/materials/[id] error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to delete material",
         data: null,
       },
       {
