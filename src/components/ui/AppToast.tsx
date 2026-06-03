@@ -10,6 +10,7 @@ export type AppToastState = {
   type: AppToastType;
   title: string;
   message?: string;
+  durationMs?: number;
 } | null;
 
 type AppToastProps = {

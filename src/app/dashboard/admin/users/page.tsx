@@ -126,7 +126,7 @@ export default function AdminUsersPage() {
     toastTimeoutRef.current = window.setTimeout(() => {
       setToast(null);
       toastTimeoutRef.current = null;
-    }, 3500);
+    }, nextToast.durationMs ?? 3500);
   }, []);
 
   useEffect(() => {
@@ -327,76 +327,75 @@ export default function AdminUsersPage() {
   };
 
   const handleResetUserPassword = async (targetUser: AdminUser) => {
-  if (isResettingPassword) return;
+    if (isResettingPassword) return;
 
-  setIsResettingPassword(true);
-  setErrorMessage("");
+    setIsResettingPassword(true);
+    setErrorMessage("");
 
-  try {
-    const response = await fetch(`/api/users/${targetUser.id}/reset-password`, {
-      method: "POST",
-    });
+    try {
+      const response = await fetch(`/api/users/${targetUser.id}/reset-password`, {
+        method: "POST",
+      });
 
-    const result = (await response.json()) as ResetPasswordApiResponse;
+      const result = (await response.json()) as ResetPasswordApiResponse;
 
-    if (!response.ok || !result.success) {
-      const message = getFriendlyUserError(result.message);
+      if (!response.ok || !result.success) {
+        const message = getFriendlyUserError(result.message);
+
+        setErrorMessage(message);
+        showToast({
+          type: "error",
+          title: "Reset password gagal",
+          message,
+        });
+        return;
+      }
+
+      const emailMeta = result.meta?.email;
+      const temporaryPassword = result.data?.temporaryPassword;
+
+      let message = `Password sementara untuk ${targetUser.name} berhasil dibuat.`;
+
+      if (emailMeta?.sent) {
+        message = "Password sementara berhasil dikirim ke email pengguna.";
+      }
+
+      if (emailMeta?.skipped) {
+        message = temporaryPassword
+          ? `Email belum dikirim karena RESEND_API_KEY belum dikonfigurasi. Password sementara: ${temporaryPassword}`
+          : "Email belum dikirim karena RESEND_API_KEY belum dikonfigurasi.";
+      }
+
+      if (emailMeta && !emailMeta.sent && !emailMeta.skipped && emailMeta.error) {
+        message = temporaryPassword
+          ? `Password berhasil direset, tetapi email gagal dikirim: ${emailMeta.error}. Password sementara: ${temporaryPassword}`
+          : `Password berhasil direset, tetapi email gagal dikirim: ${emailMeta.error}`;
+      }
+
+      showToast({
+        type:
+          emailMeta && !emailMeta.sent && !emailMeta.skipped
+            ? "warning"
+            : "success",
+        title: "Password berhasil direset",
+        message,
+        durationMs: temporaryPassword ? 12000 : 3500,
+      });
+    } catch (error) {
+      console.error("Reset user password error:", error);
+
+      const message = "Terjadi kesalahan koneksi saat mereset password pengguna.";
 
       setErrorMessage(message);
       showToast({
         type: "error",
-        title: "Reset password gagal",
+        title: "Koneksi bermasalah",
         message,
       });
-      return;
+    } finally {
+      setIsResettingPassword(false);
     }
-
-    const emailMeta = result.meta?.email;
-    const temporaryPassword = result.data?.temporaryPassword;
-
-    let message = `Password sementara untuk ${targetUser.name} berhasil dibuat.`;
-
-    if (emailMeta?.sent) {
-      message =
-        "Password sementara berhasil dikirim ke email pengguna.";
-    }
-
-    if (emailMeta?.skipped) {
-      message =
-        temporaryPassword
-          ? `Email belum dikirim karena RESEND_API_KEY belum dikonfigurasi. Password sementara: ${temporaryPassword}`
-          : "Email belum dikirim karena RESEND_API_KEY belum dikonfigurasi.";
-    }
-
-    if (emailMeta && !emailMeta.sent && !emailMeta.skipped && emailMeta.error) {
-      message = temporaryPassword
-        ? `Password berhasil direset, tetapi email gagal dikirim: ${emailMeta.error}. Password sementara: ${temporaryPassword}`
-        : `Password berhasil direset, tetapi email gagal dikirim: ${emailMeta.error}`;
-    }
-
-    showToast({
-      type:
-        emailMeta && !emailMeta.sent && !emailMeta.skipped
-          ? "warning"
-          : "success",
-      title: "Password berhasil direset",
-      message,
-    });
-  } catch (error) {
-    console.error("Reset user password error:", error);
-
-    const message = "Terjadi kesalahan koneksi saat mereset password pengguna.";
-
-    setErrorMessage(message);
-    showToast({
-      type: "error",
-      title: "Koneksi bermasalah",
-      message,
-    });
-  } finally {
-    setIsResettingPassword(false);
-  }
-};
+  };
 
   const handleSaveUser = async (data: AdminUserFormData) => {
     if (isMutating) return;

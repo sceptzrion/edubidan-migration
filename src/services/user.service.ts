@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import {
   sendAccountCreatedEmail,
-  sendAdminResetPasswordEmail
+  sendAdminResetPasswordEmail,
 } from "@/services/email/email.service";
 
 const userSafeSelect = {
