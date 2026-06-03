@@ -1,7 +1,8 @@
-import { ContentType } from "@prisma/client";
+import { ContentType, VideoSource } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { getDisplayNameParts } from "@/lib/text/name";
+import type { LearningItem, LearningModule } from "@/types/learning";
 
 const fallbackModuleImage =
   "https://images.unsplash.com/photo-1559757175-5700dde675bc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080";
@@ -43,6 +44,14 @@ export interface StudentDashboardData {
   };
   learningProgress: StudentDashboardLearningProgressItem[];
   pendingQuizzes: StudentDashboardPendingQuizItem[];
+}
+
+export interface StudentLessonData {
+  module: LearningModule;
+  item: LearningItem;
+  itemIndex: number;
+  previousItem: LearningItem | null;
+  nextItem: LearningItem | null;
 }
 
 function formatDuration(minutes: number | null) {
@@ -88,6 +97,35 @@ function calculateModuleProgress(params: {
   };
 }
 
+function getEmbedThumbnail(videoUrl: string | null) {
+  if (!videoUrl) return fallbackModuleImage;
+
+  try {
+    const parsedUrl = new URL(videoUrl);
+    const host = parsedUrl.hostname.replace("www.", "");
+
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const videoId = parsedUrl.searchParams.get("v");
+
+      return videoId
+        ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+        : fallbackModuleImage;
+    }
+
+    if (host === "youtu.be") {
+      const videoId = parsedUrl.pathname.replace("/", "");
+
+      return videoId
+        ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+        : fallbackModuleImage;
+    }
+
+    return fallbackModuleImage;
+  } catch {
+    return fallbackModuleImage;
+  }
+}
+
 async function getStudentEnrollmentData(userId: number) {
   const enrollments = await prisma.enrollment.findMany({
     where: {
@@ -105,11 +143,34 @@ async function getStudentEnrollmentData(userId: number) {
           description: true,
           bannerUrl: true,
           estimatedMinutes: true,
+          objectives: {
+            orderBy: {
+              order: "asc",
+            },
+            select: {
+              text: true,
+            },
+          },
           dosenProfile: {
             select: {
               user: {
                 select: {
                   name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          enrollments: {
+            where: {
+              isKicked: false,
+            },
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
                 },
               },
             },
@@ -125,12 +186,52 @@ async function getStudentEnrollmentData(userId: number) {
                 select: {
                   id: true,
                   title: true,
+                  description: true,
+                  videoSource: true,
+                  videoUrl: true,
+                  estimatedMinutes: true,
+                  objectives: {
+                    orderBy: {
+                      order: "asc",
+                    },
+                    select: {
+                      text: true,
+                    },
+                  },
+                  tools: {
+                    select: {
+                      name: true,
+                    },
+                  },
                 },
               },
               kuis: {
                 select: {
                   id: true,
                   title: true,
+                  description: true,
+                  hasTimeLimit: true,
+                  timeLimitMinutes: true,
+                  soals: {
+                    orderBy: {
+                      order: "asc",
+                    },
+                    select: {
+                      id: true,
+                      questionText: true,
+                      mediaUrl: true,
+                      options: {
+                        orderBy: {
+                          order: "asc",
+                        },
+                        select: {
+                          id: true,
+                          text: true,
+                          isCorrect: true,
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -140,7 +241,6 @@ async function getStudentEnrollmentData(userId: number) {
     },
   });
 
-  const moduleIds = enrollments.map((enrollment) => enrollment.module.id);
   const materialIds = enrollments.flatMap((enrollment) =>
     enrollment.module.contents
       .map((content) => content.materi?.id)
@@ -186,18 +286,115 @@ async function getStudentEnrollmentData(userId: number) {
       : [],
   ]);
 
-  const completedMaterialIds = new Set(
-    completedMaterials.map((progress) => progress.materiId)
-  );
-  const completedQuizIds = new Set(
-    completedQuizAttempts.map((attempt) => attempt.kuisId)
-  );
-
   return {
     enrollments,
-    moduleIds,
-    completedMaterialIds,
-    completedQuizIds,
+    completedMaterialIds: new Set(
+      completedMaterials.map((progress) => progress.materiId)
+    ),
+    completedQuizIds: new Set(
+      completedQuizAttempts.map((attempt) => attempt.kuisId)
+    ),
+  };
+}
+
+function mapModuleToLearningModule(params: {
+  enrollment: Awaited<ReturnType<typeof getStudentEnrollmentData>>["enrollments"][number];
+  completedMaterialIds: Set<number>;
+  completedQuizIds: Set<number>;
+}): LearningModule {
+  const module = params.enrollment.module;
+
+  const items: LearningItem[] = module.contents.flatMap((content) => {
+    if (content.kind === ContentType.MATERI && content.materi) {
+        const isCompleted = params.completedMaterialIds.has(content.materi.id);
+
+        const item: LearningItem = {
+        id: content.materi.id,
+        kind: "materi",
+        title: content.materi.title,
+        description: content.materi.description ?? "",
+        duration: formatDuration(content.materi.estimatedMinutes),
+        estimatedMinutes: content.materi.estimatedMinutes ?? 0,
+        isCompleted,
+        thumbnailUrl:
+            content.materi.videoSource === VideoSource.EMBED
+            ? getEmbedThumbnail(content.materi.videoUrl)
+            : module.bannerUrl ?? fallbackModuleImage,
+        objectives: content.materi.objectives.map((objective) => objective.text),
+        tools: content.materi.tools.map((tool) => tool.name),
+        };
+
+        return [item];
+    }
+
+    if (content.kind === ContentType.KUIS && content.kuis) {
+        const questions = content.kuis.soals.map((soal) => {
+        const correctIndex = soal.options.findIndex((option) => option.isCorrect);
+
+        return {
+            id: soal.id,
+            question: soal.questionText,
+            mediaUrl: soal.mediaUrl ?? undefined,
+            options: soal.options.map((option) => option.text),
+            correct: correctIndex >= 0 ? correctIndex : 0,
+        };
+        });
+
+        const item: LearningItem = {
+        id: content.kuis.id,
+        kind: "kuis",
+        title: content.kuis.title,
+        description: content.kuis.description ?? "",
+        duration: content.kuis.hasTimeLimit
+            ? formatDuration(content.kuis.timeLimitMinutes)
+            : "Tanpa Batas Waktu",
+        estimatedMinutes: content.kuis.timeLimitMinutes ?? 0,
+        isCompleted: params.completedQuizIds.has(content.kuis.id),
+        timeLimitMinutes: content.kuis.timeLimitMinutes ?? undefined,
+        questions,
+        };
+
+        return [item];
+    }
+
+    return [];
+    });
+
+  const materialCount = items.filter((item) => item.kind === "materi").length;
+  const completedMaterialCount = items.filter(
+    (item) => item.kind === "materi" && item.isCompleted
+  ).length;
+  const quizCount = items.filter((item) => item.kind === "kuis").length;
+  const completedQuizCount = items.filter(
+    (item) => item.kind === "kuis" && item.isCompleted
+  ).length;
+
+  const progress = calculateModuleProgress({
+    totalMaterials: materialCount,
+    completedMaterials: completedMaterialCount,
+    totalQuizzes: quizCount,
+    completedQuizzes: completedQuizCount,
+  });
+
+  return {
+    id: module.id,
+    title: module.title,
+    description: module.description ?? "Belum ada deskripsi modul.",
+    banner: module.bannerUrl ?? fallbackModuleImage,
+    thumbnail: module.bannerUrl ?? fallbackModuleImage,
+    progress: progress.progress,
+    estimatedTime: formatDuration(module.estimatedMinutes),
+    instructor: {
+      name: module.dosenProfile.user.name,
+      email: module.dosenProfile.user.email,
+    },
+    objectives: module.objectives.map((objective) => objective.text),
+    participants: module.enrollments.map((enrollment) => ({
+      id: enrollment.user.id,
+      name: enrollment.user.name,
+      email: enrollment.user.email,
+    })),
+    items,
   };
 }
 
@@ -208,40 +405,25 @@ export async function getStudentModuleCards(
     await getStudentEnrollmentData(userId);
 
   return enrollments.map((enrollment) => {
-    const module = enrollment.module;
-    const materials = module.contents.filter(
-      (content) => content.kind === ContentType.MATERI && content.materi
-    );
-    const quizzes = module.contents.filter(
-      (content) => content.kind === ContentType.KUIS && content.kuis
-    );
-
-    const completedMaterials = materials.filter(
-      (content) =>
-        content.materi?.id !== undefined && completedMaterialIds.has(content.materi.id)
-    ).length;
-    const completedQuizzes = quizzes.filter(
-      (content) =>
-        content.kuis?.id !== undefined && completedQuizIds.has(content.kuis.id)
-    ).length;
-
-    const progress = calculateModuleProgress({
-      totalMaterials: materials.length,
-      completedMaterials,
-      totalQuizzes: quizzes.length,
-      completedQuizzes,
+    const module = mapModuleToLearningModule({
+      enrollment,
+      completedMaterialIds,
+      completedQuizIds,
     });
+
+    const lessons = module.items.filter((item) => item.kind === "materi").length;
+    const quizzes = module.items.filter((item) => item.kind === "kuis").length;
 
     return {
       id: module.id,
       title: module.title,
-      desc: module.description ?? "Belum ada deskripsi modul.",
-      img: module.bannerUrl ?? fallbackModuleImage,
-      progress: progress.progress,
-      lessons: materials.length,
-      quizzes: quizzes.length,
-      duration: formatDuration(module.estimatedMinutes),
-      instructor: module.dosenProfile.user.name,
+      desc: module.description,
+      img: module.thumbnail,
+      progress: module.progress,
+      lessons,
+      quizzes,
+      duration: module.estimatedTime,
+      instructor: module.instructor.name,
     };
   });
 }
@@ -260,49 +442,36 @@ export async function getStudentDashboardData(params: {
   let totalCompletedQuizzes = 0;
 
   enrollments.forEach((enrollment) => {
-    const module = enrollment.module;
-    const materials = module.contents.filter(
-      (content) => content.kind === ContentType.MATERI && content.materi
-    );
-    const quizzes = module.contents.filter(
-      (content) => content.kind === ContentType.KUIS && content.kuis
-    );
+    const module = mapModuleToLearningModule({
+      enrollment,
+      completedMaterialIds,
+      completedQuizIds,
+    });
 
-    const completedMaterials = materials.filter(
-      (content) =>
-        content.materi?.id !== undefined && completedMaterialIds.has(content.materi.id)
+    const completedMaterials = module.items.filter(
+      (item) => item.kind === "materi" && item.isCompleted
     ).length;
-    const completedQuizzes = quizzes.filter(
-      (content) =>
-        content.kuis?.id !== undefined && completedQuizIds.has(content.kuis.id)
+    const completedQuizzes = module.items.filter(
+      (item) => item.kind === "kuis" && item.isCompleted
     ).length;
 
     totalCompletedMaterials += completedMaterials;
     totalCompletedQuizzes += completedQuizzes;
 
-    const progress = calculateModuleProgress({
-      totalMaterials: materials.length,
-      completedMaterials,
-      totalQuizzes: quizzes.length,
-      completedQuizzes,
-    });
-
     learningProgress.push({
       id: module.id,
       title: module.title,
-      progress: progress.progress,
-      totalItems: progress.totalItems,
-      completedItems: progress.completedItems,
+      progress: module.progress,
+      totalItems: module.items.length,
+      completedItems: module.items.filter((item) => item.isCompleted).length,
     });
 
-    quizzes.forEach((content) => {
-      if (!content.kuis) return;
-
-      if (!completedQuizIds.has(content.kuis.id)) {
+    module.items.forEach((item) => {
+      if (item.kind === "kuis" && !item.isCompleted) {
         pendingQuizzes.push({
-          id: content.kuis.id,
+          id: item.id,
           moduleId: module.id,
-          title: content.kuis.title,
+          title: item.title,
           status: "Belum Dikerjakan",
         });
       }
@@ -319,5 +488,51 @@ export async function getStudentDashboardData(params: {
     },
     learningProgress,
     pendingQuizzes: pendingQuizzes.slice(0, 5),
+  };
+}
+
+export async function getStudentModuleDetailData(params: {
+  userId: number;
+  moduleId: number;
+}): Promise<LearningModule | null> {
+  const { enrollments, completedMaterialIds, completedQuizIds } =
+    await getStudentEnrollmentData(params.userId);
+
+  const enrollment = enrollments.find(
+    (item) => item.module.id === params.moduleId
+  );
+
+  if (!enrollment) return null;
+
+  return mapModuleToLearningModule({
+    enrollment,
+    completedMaterialIds,
+    completedQuizIds,
+  });
+}
+
+export async function getStudentLessonData(params: {
+  userId: number;
+  moduleId: number;
+  itemId: number;
+}): Promise<StudentLessonData | null> {
+  const module = await getStudentModuleDetailData({
+    userId: params.userId,
+    moduleId: params.moduleId,
+  });
+
+  if (!module) return null;
+
+  const itemIndex = module.items.findIndex((item) => item.id === params.itemId);
+  const item = module.items[itemIndex];
+
+  if (!item) return null;
+
+  return {
+    module,
+    item,
+    itemIndex,
+    previousItem: module.items[itemIndex - 1] ?? null,
+    nextItem: module.items[itemIndex + 1] ?? null,
   };
 }

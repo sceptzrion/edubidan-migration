@@ -200,9 +200,37 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json();
 
     if (typeof body.isCompleted === "boolean") {
+      const currentUser = await getCurrentSessionUser();
+
+      if (!currentUser) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Authentication required",
+            data: null,
+          },
+          {
+            status: 401,
+          }
+        );
+      }
+
+      if (currentUser.role !== Role.MAHASISWA) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Only mahasiswa can update material progress",
+            data: null,
+          },
+          {
+            status: 403,
+          }
+        );
+      }
+
       const result = await updateMaterialProgress({
         materiId: materialId,
-        userId: body.userId,
+        userId: currentUser.id,
         isCompleted: body.isCompleted,
       });
 

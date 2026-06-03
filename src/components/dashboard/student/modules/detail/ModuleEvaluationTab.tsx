@@ -26,7 +26,7 @@ export function ModuleEvaluationTab({
             key={item.id}
             item={toModuleTaskItem(item)}
             onClick={() =>
-              router.push(`/dashboard/modules/${moduleId}/lesson/${item.id}`)
+              router.push(`/dashboard/modules/${moduleId}/quiz/${item.id}`)
             }
           />
         ))
