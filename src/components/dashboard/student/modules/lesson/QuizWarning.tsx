@@ -17,7 +17,7 @@ export function QuizWarning() {
         </li>
         <li className="flex items-start gap-2">
           <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-          Waktu akan terus berjalan setelah tombol "Mulai Kuis" ditekan.
+          Waktu akan terus berjalan setelah tombol &quot;Mulai Kuis&quot; ditekan.
         </li>
         <li className="flex items-start gap-2">
           <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />

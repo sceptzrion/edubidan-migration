@@ -119,7 +119,7 @@ export function HelpCenterClient() {
             ) : (
               <div className="text-center py-12 bg-muted/30 rounded-3xl border border-dashed border-border">
                 <p className="text-muted-foreground">
-                  Tidak ada pertanyaan yang cocok dengan kata kunci "{search}".
+                  Tidak ada pertanyaan yang cocok dengan kata kunci &quot;{search}&quot;.
                 </p>
                 <button
                   type="button"

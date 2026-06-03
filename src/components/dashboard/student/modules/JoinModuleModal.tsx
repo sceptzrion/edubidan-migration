@@ -47,7 +47,11 @@ export function JoinModuleModal({ isOpen, onClose }: JoinModuleModalProps) {
                 <CheckCircle2 size={28} className="sm:w-8 sm:h-8" />
               </div>
               <p className="text-lg sm:text-xl font-extrabold mb-1.5 text-foreground">Berhasil Bergabung!</p>
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Modul <span className="text-foreground font-bold">"{joinCode}"</span> telah ditambahkan ke daftar belajar Anda.</p>
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">
+                Modul{" "}
+                <span className="text-foreground font-bold">&quot;{joinCode}&quot;</span>{" "}
+                telah ditambahkan ke daftar belajar Anda.
+              </p>
             </div>
           ) : (
             <div className="space-y-5 sm:space-y-6">

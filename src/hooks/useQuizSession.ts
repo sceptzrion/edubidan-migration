@@ -7,26 +7,42 @@ interface UseQuizSessionParams {
   passingGrade?: number;
 }
 
+function createEmptyAnswers(length: number) {
+  return Array<number | null>(length).fill(null);
+}
+
+function createEmptyFlags(length: number) {
+  return Array<boolean>(length).fill(false);
+}
+
 export function useQuizSession({
   questions,
   passingGrade = 70,
 }: UseQuizSessionParams) {
   const [isStarted, setIsStarted] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
-  const [answers, setAnswers] = useState<(number | null)[]>([]);
-  const [flagged, setFlagged] = useState<boolean[]>([]);
+  const [answers, setAnswers] = useState<(number | null)[]>(() =>
+    createEmptyAnswers(questions.length)
+  );
+  const [flagged, setFlagged] = useState<boolean[]>(() =>
+    createEmptyFlags(questions.length)
+  );
   const [showResult, setShowResult] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [showGridMobile, setShowGridMobile] = useState(false);
 
   useEffect(() => {
-    setAnswers(Array(questions.length).fill(null));
-    setFlagged(Array(questions.length).fill(false));
-    setCurrentQ(0);
-    setIsStarted(false);
-    setShowResult(false);
-    setIsReviewMode(false);
-    setShowGridMobile(false);
+    const timeoutId = window.setTimeout(() => {
+      setAnswers(createEmptyAnswers(questions.length));
+      setFlagged(createEmptyFlags(questions.length));
+      setCurrentQ(0);
+      setIsStarted(false);
+      setShowResult(false);
+      setIsReviewMode(false);
+      setShowGridMobile(false);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [questions.length]);
 
   const currentQuestion = questions[currentQ];
@@ -37,8 +53,9 @@ export function useQuizSession({
   );
 
   const score = useMemo(() => {
-    return answers.filter((answer, index) => answer === questions[index]?.correct)
-      .length;
+    return answers.filter(
+      (answer, index) => answer === questions[index]?.correct
+    ).length;
   }, [answers, questions]);
 
   const percentage = questions.length

@@ -15,7 +15,7 @@ export function QuizStartScreen({ totalQuestions, timeLimit, onStart }: QuizStar
       </div>
       <h1 className="text-xl sm:text-3xl font-extrabold text-foreground mb-3">Siap Memulai Kuis?</h1>
       <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-6 sm:mb-8 leading-relaxed">
-        Pastikan koneksi internet Anda stabil. Waktu akan terus berjalan setelah tombol "Mulai Kuis" ditekan.
+        Pastikan koneksi internet Anda stabil. Waktu akan terus berjalan setelah tombol &quot;Mulai Kuis&quot; ditekan.
       </p>
       
       <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mb-8">
