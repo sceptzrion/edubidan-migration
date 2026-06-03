@@ -6,13 +6,16 @@ import { LecturerBottomNav } from "@/components/dashboard/lecturer/layout/Lectur
 import { LecturerSidebar } from "@/components/dashboard/lecturer/layout/LecturerSidebar";
 import { LecturerTopbar } from "@/components/dashboard/lecturer/layout/LecturerTopbar";
 import { lecturerMenuItems } from "@/components/dashboard/lecturer/layout/menuItems";
+import type { DashboardSessionUser } from "@/lib/auth/session-user";
 
 interface LecturerDashboardShellProps {
   children: ReactNode;
+  currentUser: DashboardSessionUser;
 }
 
 export function LecturerDashboardShell({
   children,
+  currentUser,
 }: LecturerDashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -22,6 +25,7 @@ export function LecturerDashboardShell({
 
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
         <LecturerTopbar
+          currentUser={currentUser}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
         />

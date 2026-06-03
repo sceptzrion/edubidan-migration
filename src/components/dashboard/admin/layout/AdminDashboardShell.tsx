@@ -6,12 +6,17 @@ import { AdminBottomNav } from "@/components/dashboard/admin/layout/AdminBottomN
 import { AdminSidebar } from "@/components/dashboard/admin/layout/AdminSidebar";
 import { AdminTopbar } from "@/components/dashboard/admin/layout/AdminTopbar";
 import { adminMenuItems } from "@/components/dashboard/admin/layout/menuItems";
+import type { DashboardSessionUser } from "@/lib/auth/session-user";
 
 interface AdminDashboardShellProps {
   children: ReactNode;
+  currentUser: DashboardSessionUser;
 }
 
-export function AdminDashboardShell({ children }: AdminDashboardShellProps) {
+export function AdminDashboardShell({
+  children,
+  currentUser,
+}: AdminDashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
@@ -20,6 +25,7 @@ export function AdminDashboardShell({ children }: AdminDashboardShellProps) {
 
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
         <AdminTopbar
+          currentUser={currentUser}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
         />

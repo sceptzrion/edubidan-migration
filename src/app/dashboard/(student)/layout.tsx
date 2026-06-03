@@ -9,7 +9,11 @@ interface StudentLayoutProps {
 }
 
 export default async function StudentLayout({ children }: StudentLayoutProps) {
-  await requireRole("/dashboard", [Role.MAHASISWA]);
+  const currentUser = await requireRole("/dashboard", [Role.MAHASISWA]);
 
-  return <StudentDashboardShell>{children}</StudentDashboardShell>;
+  return (
+    <StudentDashboardShell currentUser={currentUser}>
+      {children}
+    </StudentDashboardShell>
+  );
 }

@@ -8,13 +8,16 @@ import { LecturerNotificationMenu } from "@/components/dashboard/lecturer/layout
 import { EduBidanLogo } from "@/components/ui/EduBidanLogo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { getLecturerNotifications } from "@/data/learning/lecturer/lecturer-notifications";
+import type { DashboardSessionUser } from "@/lib/auth/session-user";
 
 interface LecturerTopbarProps {
+  currentUser: DashboardSessionUser;
   sidebarOpen: boolean;
   setSidebarOpen: (value: boolean) => void;
 }
 
 export function LecturerTopbar({
+  currentUser,
   sidebarOpen,
   setSidebarOpen,
 }: LecturerTopbarProps) {
@@ -57,6 +60,7 @@ export function LecturerTopbar({
         />
 
         <LecturerAccountMenu
+          currentUser={currentUser}
           isOpen={showAccount}
           onToggle={() => {
             setShowAccount((current) => !current);

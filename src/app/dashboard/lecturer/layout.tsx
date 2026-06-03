@@ -11,7 +11,11 @@ interface LecturerLayoutProps {
 export default async function LecturerLayout({
   children,
 }: LecturerLayoutProps) {
-  await requireRole("/dashboard/lecturer", [Role.DOSEN]);
+  const currentUser = await requireRole("/dashboard/lecturer", [Role.DOSEN]);
 
-  return <LecturerDashboardShell>{children}</LecturerDashboardShell>;
+  return (
+    <LecturerDashboardShell currentUser={currentUser}>
+      {children}
+    </LecturerDashboardShell>
+  );
 }

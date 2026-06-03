@@ -3,18 +3,21 @@
 import { useState } from "react";
 import { Menu } from "lucide-react";
 
+import { StudentAccountMenu } from "@/components/dashboard/student/layout/StudentAccountMenu";
+import { StudentNotificationMenu } from "@/components/dashboard/student/layout/StudentNotificationMenu";
 import { EduBidanLogo } from "@/components/ui/EduBidanLogo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { getStudentNotifications } from "@/data/learning/student/student-notifications";
-import { StudentAccountMenu } from "@/components/dashboard/student/layout/StudentAccountMenu";
-import { StudentNotificationMenu } from "@/components/dashboard/student/layout/StudentNotificationMenu";
+import type { DashboardSessionUser } from "@/lib/auth/session-user";
 
 interface StudentTopbarProps {
+  currentUser: DashboardSessionUser;
   sidebarOpen: boolean;
   setSidebarOpen: (value: boolean) => void;
 }
 
 export function StudentTopbar({
+  currentUser,
   sidebarOpen,
   setSidebarOpen,
 }: StudentTopbarProps) {
@@ -54,6 +57,7 @@ export function StudentTopbar({
         />
 
         <StudentAccountMenu
+          currentUser={currentUser}
           isOpen={showAccount}
           onToggle={() => {
             setShowAccount((current) => !current);

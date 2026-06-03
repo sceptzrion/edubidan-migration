@@ -9,7 +9,11 @@ interface AdminLayoutProps {
 }
 
 export default async function AdminLayout({ children }: AdminLayoutProps) {
-  await requireRole("/dashboard/admin", [Role.ADMIN]);
+  const currentUser = await requireRole("/dashboard/admin", [Role.ADMIN]);
 
-  return <AdminDashboardShell>{children}</AdminDashboardShell>;
+  return (
+    <AdminDashboardShell currentUser={currentUser}>
+      {children}
+    </AdminDashboardShell>
+  );
 }

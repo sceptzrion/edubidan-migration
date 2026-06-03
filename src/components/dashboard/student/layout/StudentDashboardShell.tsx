@@ -7,12 +7,17 @@ import { StudentBottomNav } from "@/components/dashboard/student/layout/StudentB
 import { StudentSidebar } from "@/components/dashboard/student/layout/StudentSidebar";
 import { StudentTopbar } from "@/components/dashboard/student/layout/StudentTopbar";
 import { studentMenuItems } from "@/components/dashboard/student/layout/menuItems";
+import type { DashboardSessionUser } from "@/lib/auth/session-user";
 
 interface StudentDashboardShellProps {
   children: ReactNode;
+  currentUser: DashboardSessionUser;
 }
 
-export function StudentDashboardShell({ children }: StudentDashboardShellProps) {
+export function StudentDashboardShell({
+  children,
+  currentUser,
+}: StudentDashboardShellProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -28,6 +33,7 @@ export function StudentDashboardShell({ children }: StudentDashboardShellProps) 
 
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
         <StudentTopbar
+          currentUser={currentUser}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
         />

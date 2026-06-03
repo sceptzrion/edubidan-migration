@@ -8,13 +8,17 @@ import { AdminNotificationMenu } from "@/components/dashboard/admin/layout/Admin
 import { EduBidanLogo } from "@/components/ui/EduBidanLogo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { getAdminNotifications } from "@/data/learning/admin/admin-notifications";
+import { getUserInitials } from "@/lib/auth/client-auth";
+import type { DashboardSessionUser } from "@/lib/auth/session-user";
 
 interface AdminTopbarProps {
+  currentUser: DashboardSessionUser;
   sidebarOpen: boolean;
   setSidebarOpen: (value: boolean) => void;
 }
 
 export function AdminTopbar({
+  currentUser,
   sidebarOpen,
   setSidebarOpen,
 }: AdminTopbarProps) {
@@ -22,6 +26,8 @@ export function AdminTopbar({
   const [showNotification, setShowNotification] = useState(false);
 
   const notifications = getAdminNotifications();
+  const initials = getUserInitials(currentUser.name);
+
   const hasUnreadNotification = notifications.some(
     (notification) => !notification.read
   );
@@ -91,12 +97,21 @@ export function AdminTopbar({
             aria-label="Buka menu akun admin"
             aria-expanded={showAccount}
           >
-            <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-extrabold shadow-sm group-hover:scale-105 transition-transform">
-              A
+            <div className="w-8 h-8 md:w-9 md:h-9 overflow-hidden rounded-full bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-extrabold shadow-sm group-hover:scale-105 transition-transform">
+              {currentUser.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={currentUser.avatarUrl}
+                  alt={currentUser.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                initials
+              )}
             </div>
 
-            <span className="text-xs md:text-sm font-extrabold text-foreground hidden md:block">
-              Admin
+            <span className="max-w-32 truncate text-xs md:text-sm font-extrabold text-foreground hidden md:block">
+              {currentUser.name}
             </span>
 
             <ChevronDown
@@ -108,7 +123,10 @@ export function AdminTopbar({
           </button>
 
           {showAccount && (
-            <AdminAccountMenu onClose={() => setShowAccount(false)} />
+            <AdminAccountMenu
+              currentUser={currentUser}
+              onClose={() => setShowAccount(false)}
+            />
           )}
         </div>
       </div>
