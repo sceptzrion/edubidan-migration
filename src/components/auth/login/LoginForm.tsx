@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Mail } from "lucide-react";
 
 import { AuthShell } from "@/components/auth/shared/AuthShell";
@@ -37,8 +37,28 @@ function getFriendlyLoginError(message: string) {
   return "Gagal masuk. Silakan coba lagi.";
 }
 
+function isSafeRedirectPath(path: string | null): path is string {
+  return (
+    typeof path === "string" &&
+    path.startsWith("/") &&
+    !path.startsWith("//")
+  );
+}
+
+function getReasonMessage(reason: string | null) {
+  if (reason === "auth-required") {
+    return "Anda harus login terlebih dahulu.";
+  }
+
+  return "";
+}
+
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const nextPath = searchParams.get("next");
+  const reasonMessage = getReasonMessage(searchParams.get("reason"));
 
   const [remember, setRemember] = useState(false);
   const [email, setEmail] = useState("");
@@ -80,7 +100,9 @@ export function LoginForm() {
 
       setStoredUser(result.data.user, remember);
 
-      router.push(result.data.redirectTo);
+      router.push(
+        isSafeRedirectPath(nextPath) ? nextPath : result.data.redirectTo
+      );
       router.refresh();
     } catch (error) {
       console.error("Login error:", error);
@@ -107,6 +129,12 @@ export function LoginForm() {
         <p className="text-muted-foreground mb-8 text-sm">
           Masukkan email dan kata sandi untuk melanjutkan.
         </p>
+
+        {reasonMessage && (
+          <div className="mb-6 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+            {reasonMessage}
+          </div>
+        )}
 
         <div className="space-y-5">
           <div>
