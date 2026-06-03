@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { ModuleFormModal } from "@/components/dashboard/lecturer/modules/ModuleFormModal";
 import { LecturerModulesGrid } from "@/components/dashboard/lecturer/modules/list/LecturerModulesGrid";
 import { LecturerModulesHeader } from "@/components/dashboard/lecturer/modules/list/LecturerModulesHeader";
+import { AppToast, type AppToastState } from "@/components/ui/AppToast";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   filterLecturerModules,
   type LecturerModule,
@@ -109,6 +111,10 @@ function getFriendlyModuleError(message: string) {
     return "Modul tidak ditemukan atau bukan milik akun dosen ini.";
   }
 
+  if (message === "Failed to generate unique access code") {
+    return "Gagal membuat kode modul. Silakan coba lagi.";
+  }
+
   return "Terjadi kesalahan. Silakan coba lagi.";
 }
 
@@ -120,20 +126,34 @@ export function LecturerModulesClient({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<LecturerModule | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [actionMessage, setActionMessage] = useState("");
+  const [moduleToDelete, setModuleToDelete] = useState<LecturerModule | null>(
+    null
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [toast, setToast] = useState<AppToastState>(null);
 
   const filteredModules = useMemo(() => {
     return filterLecturerModules(modules, search);
   }, [modules, search]);
 
-  const clearActionMessage = () => {
-    setActionMessage("");
-  };
+  const closeToast = useCallback(() => {
+    setToast(null);
+  }, []);
+
+  const showToast = useCallback((nextToast: NonNullable<AppToastState>) => {
+    setToast(nextToast);
+
+    if (nextToast.durationMs === 0) return;
+
+    window.setTimeout(() => {
+      setToast(null);
+    }, nextToast.durationMs ?? 3500);
+  }, []);
 
   const handleOpenCreateModal = () => {
     setEditing(null);
     setOpen(true);
-    clearActionMessage();
+    closeToast();
   };
 
   const handleCloseModal = () => {
@@ -147,7 +167,7 @@ export function LecturerModulesClient({
     if (isSaving) return;
 
     setIsSaving(true);
-    clearActionMessage();
+    closeToast();
 
     try {
       const response = await fetch(
@@ -168,7 +188,11 @@ export function LecturerModulesClient({
       const result = (await response.json()) as ModuleApiResponse;
 
       if (!response.ok || !result.success || !result.data) {
-        setActionMessage(getFriendlyModuleError(result.message));
+        showToast({
+          type: "error",
+          title: editing ? "Gagal memperbarui modul" : "Gagal menambahkan modul",
+          message: getFriendlyModuleError(result.message),
+        });
         return;
       }
 
@@ -180,31 +204,56 @@ export function LecturerModulesClient({
             module.id === editing.id ? savedModule : module
           )
         );
+
+        showToast({
+          type: "success",
+          title: "Modul berhasil diperbarui",
+          message: `Perubahan pada modul "${savedModule.title}" sudah tersimpan.`,
+        });
       } else {
         setModules((currentModules) => [savedModule, ...currentModules]);
+
+        showToast({
+          type: "success",
+          title: "Modul berhasil ditambahkan",
+          message: `Kode modul: ${savedModule.code}`,
+        });
       }
 
       setOpen(false);
       setEditing(null);
     } catch (error) {
       console.error("Save module error:", error);
-      setActionMessage("Terjadi kesalahan koneksi. Silakan coba lagi.");
+
+      showToast({
+        type: "error",
+        title: editing ? "Gagal memperbarui modul" : "Gagal menambahkan modul",
+        message: "Terjadi kesalahan koneksi. Silakan coba lagi.",
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleRemove = async (id: number) => {
-    const confirmed = window.confirm(
-      "Apakah Anda yakin ingin menghapus modul ini? Semua konten dan progres terkait modul ini juga akan terhapus."
-    );
+  const handleAskRemove = (module: LecturerModule) => {
+    setModuleToDelete(module);
+    closeToast();
+  };
 
-    if (!confirmed) return;
+  const handleCancelRemove = () => {
+    if (isDeleting) return;
 
-    clearActionMessage();
+    setModuleToDelete(null);
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!moduleToDelete || isDeleting) return;
+
+    setIsDeleting(true);
+    closeToast();
 
     try {
-      const response = await fetch(`/api/modules/${id}`, {
+      const response = await fetch(`/api/modules/${moduleToDelete.id}`, {
         method: "DELETE",
         credentials: "same-origin",
       });
@@ -216,36 +265,51 @@ export function LecturerModulesClient({
       };
 
       if (!response.ok || !result.success) {
-        setActionMessage(getFriendlyModuleError(result.message));
+        showToast({
+          type: "error",
+          title: "Gagal menghapus modul",
+          message: getFriendlyModuleError(result.message),
+        });
         return;
       }
 
       setModules((currentModules) =>
-        currentModules.filter((module) => module.id !== id)
+        currentModules.filter((module) => module.id !== moduleToDelete.id)
       );
+
+      showToast({
+        type: "success",
+        title: "Modul berhasil dihapus",
+        message: `Modul "${moduleToDelete.title}" sudah dihapus dari daftar.`,
+      });
+
+      setModuleToDelete(null);
     } catch (error) {
       console.error("Delete module error:", error);
-      setActionMessage("Terjadi kesalahan koneksi. Silakan coba lagi.");
+
+      showToast({
+        type: "error",
+        title: "Gagal menghapus modul",
+        message: "Terjadi kesalahan koneksi. Silakan coba lagi.",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10 sm:pb-12">
+      <AppToast toast={toast} onClose={closeToast} />
+
       <LecturerModulesHeader
         search={search}
         totalModules={modules.length}
         onSearchChange={(value) => {
           setSearch(value);
-          clearActionMessage();
+          closeToast();
         }}
         onAddClick={handleOpenCreateModal}
       />
-
-      {actionMessage && (
-        <div className="mb-5 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-xs sm:text-sm font-bold text-destructive">
-          {actionMessage}
-        </div>
-      )}
 
       <LecturerModulesGrid
         modules={filteredModules}
@@ -253,9 +317,15 @@ export function LecturerModulesClient({
         onEdit={(module) => {
           setEditing(module);
           setOpen(true);
-          clearActionMessage();
+          closeToast();
         }}
-        onRemove={handleRemove}
+        onRemove={(id) => {
+          const selectedModule = modules.find((module) => module.id === id);
+
+          if (selectedModule) {
+            handleAskRemove(selectedModule);
+          }
+        }}
       />
 
       {open && (
@@ -267,6 +337,22 @@ export function LecturerModulesClient({
           onSave={handleSave}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(moduleToDelete)}
+        title="Hapus modul?"
+        description={
+          moduleToDelete
+            ? `Modul "${moduleToDelete.title}" akan dihapus. Semua konten, peserta, dan progres yang terkait dengan modul ini juga dapat ikut terhapus.`
+            : "Modul ini akan dihapus."
+        }
+        confirmLabel="Hapus Modul"
+        cancelLabel="Batal"
+        variant="danger"
+        isLoading={isDeleting}
+        onCancel={handleCancelRemove}
+        onConfirm={handleConfirmRemove}
+      />
     </div>
   );
 }

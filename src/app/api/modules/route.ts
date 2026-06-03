@@ -46,13 +46,13 @@ function normalizeLecturerModuleStatus(value: unknown) {
 
 function generateModuleAccessCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let suffix = "";
+  let code = "";
 
-  for (let index = 0; index < 3; index += 1) {
-    suffix += chars[Math.floor(Math.random() * chars.length)];
+  for (let index = 0; index < 6; index += 1) {
+    code += chars[Math.floor(Math.random() * chars.length)];
   }
 
-  return `BIDAN-${suffix}`;
+  return code;
 }
 
 async function generateUniqueModuleAccessCode() {
