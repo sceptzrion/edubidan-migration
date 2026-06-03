@@ -19,6 +19,8 @@ export function LecturerGradebookTableCard({
     <div className="bg-card rounded-2xl sm:rounded-3xl border border-border shadow-sm overflow-hidden flex flex-col">
       <LecturerGradebookToolbar
         search={search}
+        quizzes={quizzes}
+        rows={rows}
         onSearchChange={onSearchChange}
       />
 
