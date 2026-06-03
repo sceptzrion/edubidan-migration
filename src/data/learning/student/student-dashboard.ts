@@ -1,6 +1,7 @@
 import { learningModules } from "@/data/learning/shared/learning-modules";
+import { getDisplayNameParts } from "@/lib/text/name";
 
-export function getStudentDashboardData() {
+export function getStudentDashboardData(studentFullName = "Mahasiswa") {
   const modules = learningModules;
 
   const allItems = modules.flatMap((module) =>
@@ -42,7 +43,7 @@ export function getStudentDashboardData() {
   });
 
   return {
-    studentName: "Ikhsan",
+    studentName: getDisplayNameParts(studentFullName),
     stats: {
       enrolledModules: modules.length,
       completedMaterials,

@@ -1,12 +1,16 @@
+import { Role } from "@prisma/client";
+
 import { ContinueLearningSection } from "@/components/dashboard/student/home/ContinueLearningSection";
 import { PendingQuizSection } from "@/components/dashboard/student/home/PendingQuizSection";
 import { StudentDashboardHeader } from "@/components/dashboard/student/home/StudentDashboardHeader";
 import { StudentStatsGrid } from "@/components/dashboard/student/home/StudentStatsGrid";
 import { StudyTipsCard } from "@/components/dashboard/student/home/StudyTipsCard";
 import { getStudentDashboardData } from "@/data/learning/student/student-dashboard";
+import { requireRole } from "@/lib/auth/guards";
 
-export default function StudentDashboardHome() {
-  const dashboardData = getStudentDashboardData();
+export default async function StudentDashboardHome() {
+  const currentUser = await requireRole("/dashboard", [Role.MAHASISWA]);
+  const dashboardData = getStudentDashboardData(currentUser.name);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">

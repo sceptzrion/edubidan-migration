@@ -18,7 +18,7 @@ export function LecturerRecentActivities({
         <div className="space-y-4">
           {activities.map((activity) => (
             <ActivityItem
-              key={`${activity.text}-${activity.time}`}
+              key={activity.id}
               text={activity.text}
               highlight={activity.highlight}
               time={activity.time}

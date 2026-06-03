@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { UserCog } from "lucide-react";
 
-export function AdminDashboardHeader() {
+interface AdminDashboardHeaderProps {
+  adminName: string;
+}
+
+export function AdminDashboardHeader({ adminName }: AdminDashboardHeaderProps) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 sm:mb-8">
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mb-1.5 sm:mb-2">
-          Beranda Admin
+          Selamat datang, {adminName}!
         </h1>
 
         <p className="text-xs sm:text-sm font-medium text-muted-foreground max-w-2xl leading-relaxed">
