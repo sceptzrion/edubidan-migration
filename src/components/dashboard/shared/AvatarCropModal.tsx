@@ -10,6 +10,8 @@ import {
 import { Check, RotateCcw, X, ZoomIn } from "lucide-react";
 import { createPortal } from "react-dom";
 
+import { useIsClient } from "@/hooks/useIsClient";
+
 interface AvatarCropModalProps {
   isOpen: boolean;
   imageSrc: string | null;
@@ -37,10 +39,11 @@ export function AvatarCropModal({
   onClose,
   onCropComplete,
 }: AvatarCropModalProps) {
+  const mounted = useIsClient();
+
   const imageRef = useRef<HTMLImageElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
 
-  const [mounted, setMounted] = useState(false);
   const [isImageReady, setIsImageReady] = useState(false);
   const [naturalSize, setNaturalSize] = useState({ width: 1, height: 1 });
 
@@ -157,11 +160,7 @@ export function AvatarCropModal({
   };
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -172,22 +171,27 @@ export function AvatarCropModal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!imageSrc || !isOpen) return;
+    if (!imageSrc || !isOpen) return undefined;
 
-    setIsImageReady(false);
-    resetCrop();
+    const timeoutId = window.setTimeout(() => {
+      setIsImageReady(false);
+      setZoom(1);
+      setPosition({ x: 0, y: 0 });
 
-    const image = new Image();
-    image.src = imageSrc;
+      const image = new Image();
+      image.src = imageSrc;
 
-    image.onload = () => {
-      imageRef.current = image;
-      setNaturalSize({
-        width: image.naturalWidth,
-        height: image.naturalHeight,
-      });
-      setIsImageReady(true);
-    };
+      image.onload = () => {
+        imageRef.current = image;
+        setNaturalSize({
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        });
+        setIsImageReady(true);
+      };
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [imageSrc, isOpen]);
 
   if (!mounted || !isOpen || !imageSrc) return null;
