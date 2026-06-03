@@ -1,4 +1,9 @@
-import { ContentType, ModuleStatus, Role } from "@prisma/client";
+import {
+  ContentType,
+  ModuleStatus,
+  NotificationType,
+  Role,
+} from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
@@ -87,6 +92,29 @@ async function getEnrollmentById(id: number) {
   });
 }
 
+async function notifyLecturerStudentJoined(params: {
+  lecturerUserId: number;
+  moduleId: number;
+  moduleTitle: string;
+  studentName: string;
+  studentNpm?: string | null;
+}) {
+  const studentIdentity = params.studentNpm
+    ? `${params.studentName} (${params.studentNpm})`
+    : params.studentName;
+
+  await prisma.notification.create({
+    data: {
+      userId: params.lecturerUserId,
+      moduleId: params.moduleId,
+      type: NotificationType.MAHASISWA_BERGABUNG,
+      title: "Mahasiswa baru bergabung",
+      body: `${studentIdentity} bergabung ke modul ${params.moduleTitle}.`,
+      href: `/dashboard/lecturer/modules/${params.moduleId}`,
+    },
+  });
+}
+
 export async function joinModuleByAccessCode(params: {
   userId: unknown;
   accessCode: unknown;
@@ -116,8 +144,14 @@ export async function joinModuleByAccessCode(params: {
     },
     select: {
       id: true,
+      name: true,
       role: true,
       isActive: true,
+      mahasiswaProfile: {
+        select: {
+          npm: true,
+        },
+      },
     },
   });
 
@@ -151,7 +185,13 @@ export async function joinModuleByAccessCode(params: {
     },
     select: {
       id: true,
+      title: true,
       status: true,
+      dosenProfile: {
+        select: {
+          userId: true,
+        },
+      },
     },
   });
 
@@ -209,6 +249,14 @@ export async function joinModuleByAccessCode(params: {
 
     const enrollment = await getEnrollmentById(updatedEnrollment.id);
 
+    await notifyLecturerStudentJoined({
+      lecturerUserId: moduleData.dosenProfile.userId,
+      moduleId: moduleData.id,
+      moduleTitle: moduleData.title,
+      studentName: user.name,
+      studentNpm: user.mahasiswaProfile?.npm,
+    });
+
     return {
       success: true,
       enrollment,
@@ -227,6 +275,14 @@ export async function joinModuleByAccessCode(params: {
   });
 
   const enrollment = await getEnrollmentById(createdEnrollment.id);
+
+  await notifyLecturerStudentJoined({
+    lecturerUserId: moduleData.dosenProfile.userId,
+    moduleId: moduleData.id,
+    moduleTitle: moduleData.title,
+    studentName: user.name,
+    studentNpm: user.mahasiswaProfile?.npm,
+  });
 
   return {
     success: true,

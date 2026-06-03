@@ -1,4 +1,4 @@
-import { Prisma, Role } from "@prisma/client";
+import { NotificationType, Prisma, Role } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
@@ -194,6 +194,35 @@ function normalizeAnswers(value: unknown) {
   return answers;
 }
 
+async function notifyLecturerQuizSubmitted(params: {
+  lecturerUserId: number;
+  moduleId: number;
+  moduleTitle: string;
+  quizTitle: string;
+  studentName: string;
+  studentNpm?: string | null;
+  score: number;
+  totalCorrect: number;
+  totalQuestions: number;
+}) {
+  const studentIdentity = params.studentNpm
+    ? `${params.studentName} (${params.studentNpm})`
+    : params.studentName;
+
+  await prisma.notification.create({
+    data: {
+      userId: params.lecturerUserId,
+      moduleId: params.moduleId,
+      type: NotificationType.KUIS_DIKERJAKAN,
+      title: "Kuis telah dikerjakan",
+      body: `${studentIdentity} mengerjakan ${params.quizTitle} pada modul ${params.moduleTitle}. Nilai: ${params.score.toFixed(
+        1
+      )} (${params.totalCorrect}/${params.totalQuestions} benar).`,
+      href: `/dashboard/lecturer/gradebook/${params.moduleId}`,
+    },
+  });
+}
+
 export async function getQuizById(id: number) {
   const quiz = await prisma.kuis.findUnique({
     where: {
@@ -277,8 +306,14 @@ export async function submitQuiz(params: {
     },
     select: {
       id: true,
+      name: true,
       role: true,
       isActive: true,
+      mahasiswaProfile: {
+        select: {
+          npm: true,
+        },
+      },
     },
   });
 
@@ -312,9 +347,21 @@ export async function submitQuiz(params: {
     },
     select: {
       id: true,
+      title: true,
       content: {
         select: {
           moduleId: true,
+          module: {
+            select: {
+              id: true,
+              title: true,
+              dosenProfile: {
+                select: {
+                  userId: true,
+                },
+              },
+            },
+          },
         },
       },
       soals: {
@@ -446,6 +493,18 @@ export async function submitQuiz(params: {
       error: "QUIZ_NOT_FOUND",
     };
   }
+
+  await notifyLecturerQuizSubmitted({
+    lecturerUserId: quiz.content.module.dosenProfile.userId,
+    moduleId: quiz.content.module.id,
+    moduleTitle: quiz.content.module.title,
+    quizTitle: quiz.title,
+    studentName: user.name,
+    studentNpm: user.mahasiswaProfile?.npm,
+    score,
+    totalCorrect,
+    totalQuestions,
+  });
 
   return {
     success: true,
