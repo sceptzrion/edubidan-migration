@@ -39,9 +39,9 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
-    const module = await getModuleById(moduleId);
+    const moduleData = await getModuleById(moduleId);
 
-    if (!module) {
+    if (!moduleData) {
       return NextResponse.json(
         {
           success: false,

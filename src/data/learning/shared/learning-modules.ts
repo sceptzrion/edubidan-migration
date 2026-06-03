@@ -267,25 +267,25 @@ export const learningModules: LearningModule[] = [
 ];
 
 export function getLearningModule(moduleId: number) {
-  return learningModules.find((module) => module.id === moduleId) ?? null;
+  return learningModules.find((learningModule) => learningModule.id === moduleId) ?? null;
 }
 
 export function getLearningItem(moduleId: number, itemId: number) {
-  const module = getLearningModule(moduleId);
+  const learningModule = getLearningModule(moduleId);
 
-  if (!module) return null;
+  if (!learningModule) return null;
 
-  const itemIndex = module.items.findIndex((item) => item.id === itemId);
-  const item = module.items[itemIndex];
+  const itemIndex = learningModule.items.findIndex((item) => item.id === itemId);
+  const item = learningModule.items[itemIndex];
 
   if (!item) return null;
 
   return {
-    module,
+    module: learningModule,
     item,
     itemIndex,
-    previousItem: module.items[itemIndex - 1] ?? null,
-    nextItem: module.items[itemIndex + 1] ?? null,
+    previousItem: learningModule.items[itemIndex - 1] ?? null,
+    nextItem: learningModule.items[itemIndex + 1] ?? null,
   };
 }
 

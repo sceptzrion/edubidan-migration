@@ -158,7 +158,7 @@ function mapModuleContent(content: ModuleContentItem) {
 }
 
 export async function getModuleContents(moduleId: number) {
-  const module = await prisma.module.findUnique({
+  const moduleData = await prisma.module.findUnique({
     where: {
       id: moduleId,
     },
@@ -168,7 +168,7 @@ export async function getModuleContents(moduleId: number) {
     },
   });
 
-  if (!module) {
+  if (!moduleData) {
     return null;
   }
 
@@ -183,7 +183,7 @@ export async function getModuleContents(moduleId: number) {
   });
 
   return {
-    module,
+    module: moduleData,
     contents: contents.map(mapModuleContent),
   };
 }

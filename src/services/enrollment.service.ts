@@ -134,7 +134,7 @@ export async function joinModuleByAccessCode(params: {
     };
   }
 
-  const module = await prisma.module.findUnique({
+  const moduleData = await prisma.module.findUnique({
     where: {
       accessCode,
     },
@@ -144,7 +144,7 @@ export async function joinModuleByAccessCode(params: {
     },
   });
 
-  if (!module) {
+  if (!moduleData) {
     return {
       success: false,
       enrollment: null,
@@ -152,7 +152,7 @@ export async function joinModuleByAccessCode(params: {
     };
   }
 
-  if (module.status !== ModuleStatus.PUBLIK) {
+  if (moduleData.status !== ModuleStatus.PUBLIK) {
     return {
       success: false,
       enrollment: null,
@@ -164,7 +164,7 @@ export async function joinModuleByAccessCode(params: {
     where: {
       userId_moduleId: {
         userId,
-        moduleId: module.id,
+        moduleId: moduleData.id,
       },
     },
     select: {
@@ -208,7 +208,7 @@ export async function joinModuleByAccessCode(params: {
   const createdEnrollment = await prisma.enrollment.create({
     data: {
       userId,
-      moduleId: module.id,
+      moduleId: moduleData.id,
     },
     select: {
       id: true,
@@ -266,7 +266,7 @@ export async function updateParticipantKickStatus(params: {
     };
   }
 
-  const module = await prisma.module.findUnique({
+  const moduleData = await prisma.module.findUnique({
     where: {
       id: params.moduleId,
     },
@@ -275,7 +275,7 @@ export async function updateParticipantKickStatus(params: {
     },
   });
 
-  if (!module) {
+  if (!moduleData) {
     return {
       success: false,
       enrollment: null,

@@ -20,7 +20,7 @@ export default function StudentModuleDetailPage() {
   const params = useParams<{ id: string }>();
 
   const moduleId = Number(params.id);
-  const module = getLearningModule(moduleId);
+  const learningModule = getLearningModule(moduleId);
 
   const [tab, setTab] = useState<DetailTab>("pembelajaran");
   const [searchQuery, setSearchQuery] = useState("");
@@ -28,19 +28,19 @@ export default function StudentModuleDetailPage() {
   const keyword = searchQuery.trim().toLowerCase();
 
   const filteredLearningItems = useMemo(() => {
-    if (!module) return [];
+    if (!learningModule) return [];
 
-    if (!keyword) return module.items;
+    if (!keyword) return learningModule.items;
 
-    return module.items.filter((item) =>
+    return learningModule.items.filter((item) =>
       item.title.toLowerCase().includes(keyword)
     );
-  }, [keyword, module]);
+  }, [keyword, learningModule]);
 
   const filteredQuizItems = useMemo(() => {
-    if (!module) return [];
+    if (!learningModule) return [];
 
-    return module.items.filter((item) => {
+    return learningModule.items.filter((item) => {
       const isQuiz = item.kind === "kuis";
       const matchKeyword = keyword
         ? item.title.toLowerCase().includes(keyword)
@@ -48,22 +48,22 @@ export default function StudentModuleDetailPage() {
 
       return isQuiz && matchKeyword;
     });
-  }, [keyword, module]);
+  }, [keyword, learningModule]);
 
   const filteredParticipants = useMemo(() => {
-    if (!module) return [];
+    if (!learningModule) return [];
 
-    if (!keyword) return module.participants;
+    if (!keyword) return learningModule.participants;
 
-    return module.participants.filter((participant) => {
+    return learningModule.participants.filter((participant) => {
       return (
         participant.name.toLowerCase().includes(keyword) ||
         participant.email.toLowerCase().includes(keyword)
       );
     });
-  }, [keyword, module]);
+  }, [keyword, learningModule]);
 
-  if (!module) {
+  if (!learningModule) {
     return (
       <div className="bg-card rounded-3xl border border-border p-8 text-center">
         <h1 className="text-xl font-extrabold text-foreground mb-2">
@@ -91,14 +91,14 @@ export default function StudentModuleDetailPage() {
 
       <ModuleDetailHeader
         info={{
-          banner: module.banner,
-          title: module.title,
-          progress: module.progress,
-          description: module.description,
-          estimatedTime: module.estimatedTime,
-          contentSummary: getModuleContentSummary(module.items),
-          objectives: module.objectives,
-          instructor: module.instructor,
+          banner: learningModule.banner,
+          title: learningModule.title,
+          progress: learningModule.progress,
+          description: learningModule.description,
+          estimatedTime: learningModule.estimatedTime,
+          contentSummary: getModuleContentSummary(learningModule.items),
+          objectives: learningModule.objectives,
+          instructor: learningModule.instructor,
         }}
       />
 
@@ -111,18 +111,21 @@ export default function StudentModuleDetailPage() {
 
       {tab === "pembelajaran" && (
         <ModuleLearningTab
-          moduleId={module.id}
+          moduleId={learningModule.id}
           items={filteredLearningItems}
         />
       )}
 
       {tab === "evaluasi" && (
-        <ModuleEvaluationTab moduleId={module.id} items={filteredQuizItems} />
+        <ModuleEvaluationTab
+          moduleId={learningModule.id}
+          items={filteredQuizItems}
+        />
       )}
 
       {tab === "peserta" && (
         <ModuleParticipantsTab
-          instructor={module.instructor}
+          instructor={learningModule.instructor}
           participants={filteredParticipants}
         />
       )}

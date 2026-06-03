@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, Info, TriangleAlert, X, XCircle } from "lucide-react";
+
+import { useIsClient } from "@/hooks/useIsClient";
 
 export type AppToastType = "success" | "error" | "info" | "warning";
 
@@ -46,50 +47,11 @@ const toastStyles = {
 };
 
 export function AppToast({ toast, onClose }: AppToastProps) {
-  const [mounted, setMounted] = useState(false);
-  const [displayedToast, setDisplayedToast] = useState<AppToastState>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const mounted = useIsClient();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  if (!mounted || !toast) return null;
 
-  useEffect(() => {
-    if (toast) {
-      setDisplayedToast(toast);
-
-      const frame = window.requestAnimationFrame(() => {
-        setIsVisible(true);
-      });
-
-      return () => window.cancelAnimationFrame(frame);
-    }
-
-    if (!toast && displayedToast) {
-      setIsVisible(false);
-
-      const timeout = window.setTimeout(() => {
-        setDisplayedToast(null);
-      }, 220);
-
-      return () => window.clearTimeout(timeout);
-    }
-
-    return undefined;
-  }, [toast, displayedToast]);
-
-  const handleClose = () => {
-    setIsVisible(false);
-
-    window.setTimeout(() => {
-      onClose();
-      setDisplayedToast(null);
-    }, 180);
-  };
-
-  if (!mounted || !displayedToast) return null;
-
-  const style = toastStyles[displayedToast.type];
+  const style = toastStyles[toast.type];
   const Icon = style.icon;
 
   return createPortal(
@@ -97,11 +59,7 @@ export function AppToast({ toast, onClose }: AppToastProps) {
       <div
         className={`pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border ${
           style.borderClassName
-        } bg-card/95 shadow-2xl shadow-black/30 backdrop-blur-xl transition-all duration-200 ease-out ${
-          isVisible
-            ? "translate-y-0 scale-100 opacity-100"
-            : "-translate-y-4 scale-95 opacity-0"
-        }`}
+        } bg-card/95 shadow-2xl shadow-black/30 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 zoom-in-95 duration-200`}
       >
         <div className="flex items-start gap-3 p-4">
           <div
@@ -112,19 +70,19 @@ export function AppToast({ toast, onClose }: AppToastProps) {
 
           <div className="min-w-0 flex-1">
             <p className="text-sm font-extrabold text-foreground">
-              {displayedToast.title}
+              {toast.title}
             </p>
 
-            {displayedToast.message && (
+            {toast.message && (
               <p className="mt-1 text-xs font-medium leading-relaxed text-muted-foreground">
-                {displayedToast.message}
+                {toast.message}
               </p>
             )}
           </div>
 
           <button
             type="button"
-            onClick={handleClose}
+            onClick={onClose}
             className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Tutup notifikasi"
           >

@@ -1,53 +1,60 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Sun, Moon } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
+import { useSyncExternalStore } from "react";
+
+const THEME_STORAGE_KEY = "edubidan-theme";
+
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+
+  return () => {
+    window.removeEventListener("storage", callback);
+  };
+}
+
+function getSnapshot() {
+  if (typeof window === "undefined") return "light";
+
+  return localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+}
+
+function getServerSnapshot() {
+  return "light";
+}
 
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
-  const [mounted, setMounted] = useState(false); // Mencegah error hydration di Next.js
+  const theme = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot
+  );
 
-  useEffect(() => {
-    setMounted(true);
-    // Cek penyimpanan browser saat web pertama kali dimuat
-    const storedTheme = localStorage.getItem("edubidan-theme");
-    
-    // Terapkan tema berdasarkan memori browser
-    if (storedTheme === "dark") {
-      setIsDark(true);
-      document.documentElement.classList.add("dark");
-    } else {
-      setIsDark(false);
-      document.documentElement.classList.remove("dark");
-    }
-  }, []);
+  const isDark = theme === "dark";
 
   const toggleTheme = () => {
-    if (isDark) {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("edubidan-theme", "light");
-      setIsDark(false);
-    } else {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("edubidan-theme", "dark");
-      setIsDark(true);
-    }
-  };
+    const nextTheme = isDark ? "light" : "dark";
 
-  // Selama komponen belum siap, tampilkan div kosong seukuran tombol
-  // agar tombol di sebelahnya tidak bergeser (layout shift)
-  if (!mounted) {
-    return <div className="w-9 h-9" />; 
-  }
+    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+
+    if (nextTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+
+    window.dispatchEvent(new StorageEvent("storage"));
+  };
 
   return (
     <button
+      type="button"
       onClick={toggleTheme}
       className="p-2 rounded-lg hover:bg-muted transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
       title={isDark ? "Mode Terang" : "Mode Gelap"}
     >
       {isDark ? (
-        <Sun size={20} className="text-amber-500" /> 
+        <Sun size={20} className="text-amber-500" />
       ) : (
         <Moon size={20} className="text-muted-foreground" />
       )}

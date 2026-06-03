@@ -184,7 +184,11 @@ export default function AdminUsersPage() {
   }, [showToast]);
 
   useEffect(() => {
-    void loadUsers();
+    const timeoutId = window.setTimeout(() => {
+      void loadUsers();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadUsers]);
 
   const updateUserStatus = async (targetUser: AdminUser, isActive: boolean) => {

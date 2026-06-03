@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useIsClient } from "@/hooks/useIsClient";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2,
@@ -93,7 +94,7 @@ export function UserFormModal({
   onSave,
   onResetPassword,
 }: UserFormModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
   const [form, setForm] = useState<AdminUserFormData>(() =>
     getInitialForm(user)
   );
@@ -142,10 +143,6 @@ export function UserFormModal({
     password,
     confirmPassword,
   ]);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;

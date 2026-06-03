@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useIsClient } from "@/hooks/useIsClient";
 import { createPortal } from "react-dom";
 import {
   Award,
@@ -103,12 +104,8 @@ function AccountActionRow({
 }
 
 export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
   const [tab, setTab] = useState<UserDetailTab>("profil");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;

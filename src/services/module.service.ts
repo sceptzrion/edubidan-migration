@@ -282,18 +282,18 @@ export async function getModules(params?: {
 }
 
 export async function getModuleById(id: number) {
-  const module = await prisma.module.findUnique({
+  const moduleData = await prisma.module.findUnique({
     where: {
       id,
     },
     select: moduleDetailSelect,
   });
 
-  if (!module) {
+  if (!moduleData) {
     return null;
   }
 
-  return mapModuleDetail(module);
+  return mapModuleDetail(moduleData);
 }
 
 function normalizeOptionalString(value: unknown) {
@@ -467,11 +467,11 @@ export async function createModule(params: {
     },
   });
 
-  const module = await getModuleById(createdModule.id);
+  const moduleData = await getModuleById(createdModule.id);
 
   return {
     success: true,
-    module,
+    module: moduleData,
     error: null,
   };
 }
@@ -607,11 +607,11 @@ export async function updateModule(params: {
     data,
   });
 
-  const module = await getModuleById(params.id);
+  const moduleData = await getModuleById(params.id);
 
   return {
     success: true,
-    module,
+    module: moduleData,
     error: null,
   };
 }
@@ -668,11 +668,11 @@ export async function updateModulePublishStatus(params: {
     },
   });
 
-  const module = await getModuleById(params.id);
+  const moduleData = await getModuleById(params.id);
 
   return {
     success: true,
-    module,
+    module: moduleData,
     error: null,
   };
 }

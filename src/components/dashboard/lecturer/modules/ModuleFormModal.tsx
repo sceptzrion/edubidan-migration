@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Save, X } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -9,6 +9,7 @@ import type {
   LecturerModuleFormValue,
   LecturerModuleStatus,
 } from "@/data/learning/lecturer/lecturer-modules";
+import { useIsClient } from "@/hooks/useIsClient";
 
 interface ModuleFormModalProps {
   isOpen: boolean;
@@ -19,47 +20,43 @@ interface ModuleFormModalProps {
 
 const statusOptions: LecturerModuleStatus[] = ["Draft", "Publik"];
 
+function getInitialForm(editing: LecturerModule | null): LecturerModuleFormValue {
+  if (editing) {
+    return {
+      title: editing.title,
+      status: editing.status,
+    };
+  }
+
+  return {
+    title: "",
+    status: "Draft",
+  };
+}
+
 export function ModuleFormModal({
   isOpen,
   editing,
   onClose,
   onSave,
 }: ModuleFormModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
+
+  const initialForm = useMemo(() => getInitialForm(editing), [editing]);
+
   const [error, setError] = useState("");
-  const [form, setForm] = useState<LecturerModuleFormValue>({
-    title: "",
-    status: "Draft",
-  });
+  const [form, setForm] = useState<LecturerModuleFormValue>(initialForm);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    setError("");
-
-    if (editing) {
-      setForm({
-        title: editing.title,
-        status: editing.status,
-      });
-    } else {
-      setForm({
-        title: "",
-        status: "Draft",
-      });
-    }
-
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [editing, isOpen]);
+  }, [isOpen]);
 
   const handleSave = () => {
     if (!form.title.trim()) {
@@ -124,7 +121,10 @@ export function ModuleFormModal({
               id="moduleTitle"
               value={form.title}
               onChange={(event) => {
-                setForm({ ...form, title: event.target.value });
+                setForm((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }));
                 setError("");
               }}
               placeholder="Contoh: ANC Terpadu Trimester 1"
@@ -151,7 +151,12 @@ export function ModuleFormModal({
                   <button
                     key={status}
                     type="button"
-                    onClick={() => setForm({ ...form, status })}
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        status,
+                      }))
+                    }
                     className={`flex-1 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border-2 text-sm font-extrabold transition-all ${
                       isSelected
                         ? "border-primary bg-primary/10 text-primary shadow-sm"

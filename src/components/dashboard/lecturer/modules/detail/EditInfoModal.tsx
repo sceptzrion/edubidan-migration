@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useIsClient } from "@/hooks/useIsClient";
 import { Save, X } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -13,13 +14,9 @@ interface EditInfoModalProps {
 }
 
 export function EditInfoModal({ info, onSave, onClose }: EditInfoModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
   const [form, setForm] = useState<LecturerModuleDetailInfo>(info);
   const [objectiveText, setObjectiveText] = useState(info.objectives.join("\n"));
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;

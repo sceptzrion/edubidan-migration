@@ -52,9 +52,9 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
-    const module = await getModuleById(moduleId);
+    const moduleData = await getModuleById(moduleId);
 
-    if (!module) {
+    if (!moduleData) {
       return NextResponse.json(
         {
           success: false,
@@ -70,7 +70,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({
       success: true,
       message: "Module retrieved successfully",
-      data: module,
+      data: moduleData,
     });
   } catch (error) {
     console.error("GET /api/modules/[id] error:", error);
