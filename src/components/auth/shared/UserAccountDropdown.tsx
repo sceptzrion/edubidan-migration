@@ -83,11 +83,20 @@ export function UserAccountDropdown({
     router.push("/dashboard/settings");
   };
 
-  const handleLogout = () => {
-    clearStoredUser();
-    setIsOpen(false);
-    router.replace(logoutRedirectPath);
-    router.refresh();
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } catch (error) {
+      console.error("Logout request failed:", error);
+    } finally {
+      clearStoredUser();
+      setIsOpen(false);
+      router.replace(logoutRedirectPath);
+      router.refresh();
+    }
   };
 
   return (

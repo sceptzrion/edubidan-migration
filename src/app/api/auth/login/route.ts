@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { createAuthSession } from "@/lib/auth/session";
 import { loginUser } from "@/services/auth.service";
 
 export const dynamic = "force-dynamic";
 
-function getLoginErrorMessage(error: NonNullable<Awaited<ReturnType<typeof loginUser>>["error"]>) {
+function getLoginErrorMessage(
+  error: NonNullable<Awaited<ReturnType<typeof loginUser>>["error"]>
+) {
   if (error === "EMAIL_REQUIRED") {
     return "Email is required";
   }
@@ -20,7 +23,9 @@ function getLoginErrorMessage(error: NonNullable<Awaited<ReturnType<typeof login
   return "Invalid email or password";
 }
 
-function getLoginStatusCode(error: NonNullable<Awaited<ReturnType<typeof loginUser>>["error"]>) {
+function getLoginStatusCode(
+  error: NonNullable<Awaited<ReturnType<typeof loginUser>>["error"]>
+) {
   if (error === "EMAIL_REQUIRED" || error === "PASSWORD_REQUIRED") {
     return 400;
   }
@@ -53,6 +58,11 @@ export async function POST(request: NextRequest) {
         }
       );
     }
+
+    await createAuthSession({
+      id: result.user.id,
+      role: result.user.role,
+    });
 
     return NextResponse.json({
       success: true,
