@@ -1,6 +1,9 @@
+import { Role } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { updateParticipantKickStatus } from "@/services/enrollment.service";
+import { getCurrentSessionUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -48,8 +51,73 @@ function getKickStatusCode(
   return 404;
 }
 
+async function getAuthenticatedDosenProfileId() {
+  const currentUser = await getCurrentSessionUser();
+
+  if (!currentUser) {
+    return {
+      success: false as const,
+      status: 401,
+      message: "Authentication required",
+      dosenProfileId: null,
+    };
+  }
+
+  if (currentUser.role !== Role.DOSEN) {
+    return {
+      success: false as const,
+      status: 403,
+      message: "Only lecturers can manage participants",
+      dosenProfileId: null,
+    };
+  }
+
+  if (!currentUser.dosenProfile?.id) {
+    return {
+      success: false as const,
+      status: 403,
+      message: "Dosen profile not found",
+      dosenProfileId: null,
+    };
+  }
+
+  return {
+    success: true as const,
+    status: 200,
+    message: "OK",
+    dosenProfileId: currentUser.dosenProfile.id,
+  };
+}
+
+async function getOwnedModule(moduleId: number, dosenProfileId: number) {
+  return prisma.module.findFirst({
+    where: {
+      id: moduleId,
+      dosenProfileId,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
+    const auth = await getAuthenticatedDosenProfileId();
+
+    if (!auth.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: auth.message,
+          data: null,
+        },
+        {
+          status: auth.status,
+        }
+      );
+    }
+
     const { id, userId } = await context.params;
     const moduleId = parsePositiveId(id);
     const parsedUserId = parsePositiveId(userId);
@@ -63,6 +131,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         },
         {
           status: 400,
+        }
+      );
+    }
+
+    const ownedModule = await getOwnedModule(moduleId, auth.dosenProfileId);
+
+    if (!ownedModule) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Module not found or not owned by lecturer",
+          data: null,
+        },
+        {
+          status: 404,
         }
       );
     }

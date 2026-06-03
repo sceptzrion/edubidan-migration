@@ -250,7 +250,7 @@ export function LecturerModuleDetailClient({
         <PlaylistTab moduleId={moduleId} initialItems={initialPlaylistItems} />
       )}
 
-      {tab === "peserta" && <ParticipantsTab />}
+      {tab === "peserta" && <ParticipantsTab moduleId={moduleId} />}
 
       {editInfoOpen && (
         <EditInfoModal

@@ -1,4 +1,4 @@
-import { ModuleStatus, Role } from "@prisma/client";
+import { ContentType, ModuleStatus, Role } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
@@ -46,6 +46,17 @@ function normalizeRequiredString(value: unknown) {
 
   return trimmed.length > 0 ? trimmed : null;
 }
+
+export type ModuleParticipant = {
+  enrollmentId: number;
+  userId: number;
+  name: string;
+  email: string;
+  npm: string;
+  avatarUrl: string | null;
+  joinedAt: Date;
+  progress: number;
+};
 
 export type JoinModuleResult =
   | {
@@ -233,6 +244,93 @@ export async function getModuleParticipants(moduleId: number) {
     orderBy: {
       joinedAt: "desc",
     },
+  });
+}
+
+export async function getActiveModuleParticipantsWithProgress(
+  moduleId: number
+): Promise<ModuleParticipant[]> {
+  const [enrollments, totalMaterials] = await Promise.all([
+    prisma.enrollment.findMany({
+      where: {
+        moduleId,
+        isKicked: false,
+      },
+      select: {
+        id: true,
+        userId: true,
+        joinedAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true,
+            mahasiswaProfile: {
+              select: {
+                npm: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        joinedAt: "desc",
+      },
+    }),
+    prisma.moduleContent.count({
+      where: {
+        moduleId,
+        kind: ContentType.MATERI,
+      },
+    }),
+  ]);
+
+  if (enrollments.length === 0) {
+    return [];
+  }
+
+  const progressRows = await prisma.lessonProgress.findMany({
+    where: {
+      isCompleted: true,
+      userId: {
+        in: enrollments.map((enrollment) => enrollment.userId),
+      },
+      materi: {
+        content: {
+          moduleId,
+        },
+      },
+    },
+    select: {
+      userId: true,
+      materiId: true,
+    },
+  });
+
+  const completedByUser = new Map<number, Set<number>>();
+
+  progressRows.forEach((progress) => {
+    const currentSet = completedByUser.get(progress.userId) ?? new Set<number>();
+    currentSet.add(progress.materiId);
+    completedByUser.set(progress.userId, currentSet);
+  });
+
+  return enrollments.map((enrollment) => {
+    const completedCount = completedByUser.get(enrollment.userId)?.size ?? 0;
+    const progress =
+      totalMaterials > 0 ? Math.round((completedCount / totalMaterials) * 100) : 0;
+
+    return {
+      enrollmentId: enrollment.id,
+      userId: enrollment.userId,
+      name: enrollment.user.name,
+      email: enrollment.user.email,
+      npm: enrollment.user.mahasiswaProfile?.npm ?? "-",
+      avatarUrl: enrollment.user.avatarUrl,
+      joinedAt: enrollment.joinedAt,
+      progress,
+    };
   });
 }
 

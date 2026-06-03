@@ -25,27 +25,6 @@ export interface LecturerGradebookRow extends LecturerGradebookStudent {
 
 export const PASS_THRESHOLD = 70;
 
-export const lecturerGradebookModules: LecturerGradebookModule[] = [
-  {
-    id: 1,
-    title: "ANC Terpadu Trimester 1",
-    studentCount: 45,
-    quizCount: 3,
-  },
-  {
-    id: 2,
-    title: "APGAR Score & Resusitasi",
-    studentCount: 38,
-    quizCount: 2,
-  },
-  {
-    id: 3,
-    title: "Inisiasi Menyusu Dini",
-    studentCount: 27,
-    quizCount: 2,
-  },
-];
-
 export const lecturerGradebookDetails: Record<string, LecturerGradebookDetail> =
   {
     "1": {
