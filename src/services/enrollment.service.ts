@@ -6,6 +6,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { createNotificationWithPreference } from "@/services/notification-preference.service";
 
 const enrollmentSelect = {
   id: true,
@@ -103,15 +104,13 @@ async function notifyLecturerStudentJoined(params: {
     ? `${params.studentName} (${params.studentNpm})`
     : params.studentName;
 
-  await prisma.notification.create({
-    data: {
-      userId: params.lecturerUserId,
-      moduleId: params.moduleId,
-      type: NotificationType.MAHASISWA_BERGABUNG,
-      title: "Mahasiswa baru bergabung",
-      body: `${studentIdentity} bergabung ke modul ${params.moduleTitle}.`,
-      href: `/dashboard/lecturer/modules/${params.moduleId}`,
-    },
+  await createNotificationWithPreference({
+    userId: params.lecturerUserId,
+    moduleId: params.moduleId,
+    type: NotificationType.MAHASISWA_BERGABUNG,
+    title: "Mahasiswa baru bergabung",
+    body: `${studentIdentity} bergabung ke modul ${params.moduleTitle}.`,
+    href: `/dashboard/lecturer/modules/${params.moduleId}`,
   });
 }
 

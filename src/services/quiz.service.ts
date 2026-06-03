@@ -1,6 +1,7 @@
 import { NotificationType, Prisma, Role } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { createNotificationWithPreference } from "@/services/notification-preference.service";
 
 const quizDetailSelect = {
   id: true,
@@ -209,17 +210,15 @@ async function notifyLecturerQuizSubmitted(params: {
     ? `${params.studentName} (${params.studentNpm})`
     : params.studentName;
 
-  await prisma.notification.create({
-    data: {
-      userId: params.lecturerUserId,
-      moduleId: params.moduleId,
-      type: NotificationType.KUIS_DIKERJAKAN,
-      title: "Kuis telah dikerjakan",
-      body: `${studentIdentity} mengerjakan ${params.quizTitle} pada modul ${params.moduleTitle}. Nilai: ${params.score.toFixed(
-        1
-      )} (${params.totalCorrect}/${params.totalQuestions} benar).`,
-      href: `/dashboard/lecturer/gradebook/${params.moduleId}`,
-    },
+  await createNotificationWithPreference({
+    userId: params.lecturerUserId,
+    moduleId: params.moduleId,
+    type: NotificationType.KUIS_DIKERJAKAN,
+    title: "Kuis telah dikerjakan",
+    body: `${studentIdentity} mengerjakan ${params.quizTitle} pada modul ${params.moduleTitle}. Nilai: ${params.score.toFixed(
+      1
+    )} (${params.totalCorrect}/${params.totalQuestions} benar).`,
+    href: `/dashboard/lecturer/gradebook/${params.moduleId}`,
   });
 }
 

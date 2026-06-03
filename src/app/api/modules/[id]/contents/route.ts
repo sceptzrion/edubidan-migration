@@ -6,6 +6,7 @@ import { createMaterial, getModuleContents } from "@/services/material.service";
 import { reorderModuleContents } from "@/services/module-content.service";
 import { getCurrentSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { filterUserIdsByNotificationPreference } from "@/services/notification-preference.service";
 
 export const dynamic = "force-dynamic";
 
@@ -148,12 +149,24 @@ async function notifyParticipantsNewContent(params: {
   }
 
   const isMaterial = params.contentKind === ContentType.MATERI;
+  const notificationType = isMaterial
+    ? NotificationType.MATERI_BARU
+    : NotificationType.KUIS_BARU;
+
+  const allowedUserIds = await filterUserIdsByNotificationPreference({
+    userIds: activeEnrollments.map((enrollment) => enrollment.userId),
+    type: notificationType,
+  });
+
+  if (allowedUserIds.length === 0) {
+    return;
+  }
 
   await prisma.notification.createMany({
-    data: activeEnrollments.map((enrollment) => ({
-      userId: enrollment.userId,
+    data: allowedUserIds.map((userId) => ({
+      userId,
       moduleId: params.moduleId,
-      type: isMaterial ? NotificationType.MATERI_BARU : NotificationType.KUIS_BARU,
+      type: notificationType,
       title: isMaterial ? "Materi baru tersedia" : "Kuis baru tersedia",
       body: isMaterial
         ? `Materi "${params.contentTitle}" telah ditambahkan pada modul ${params.moduleTitle}.`
