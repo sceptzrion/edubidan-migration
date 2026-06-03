@@ -3,13 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlignLeft,
-  Bold,
   BookOpen,
   FileVideo,
-  Italic,
   Link as LinkIcon,
-  List,
   Plus,
   Save,
   Target,
@@ -246,50 +242,41 @@ export function MateriModal({ initial, onSave, onClose }: MateriModalProps) {
             )}
           </div>
 
-          <div>
-            <label className="text-xs sm:text-sm mb-2.5 flex items-center gap-2 font-bold text-foreground">
-              <BookOpen size={16} className="text-primary" /> Ringkasan Materi
-            </label>
-            <div className="border border-border rounded-xl bg-card shadow-sm overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
-              <div className="flex flex-wrap gap-1 p-2 border-b border-border bg-muted/30">
-                <button
-                  type="button"
-                  className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+          <div className="p-4 sm:p-5 rounded-2xl border border-border bg-card shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
+              <div>
+                <label
+                  htmlFor="materialSummary"
+                  className="text-xs sm:text-sm flex items-center gap-2 font-bold text-foreground"
                 >
-                  <Bold size={16} />
-                </button>
-                <button
-                  type="button"
-                  className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
-                >
-                  <Italic size={16} />
-                </button>
-                <button
-                  type="button"
-                  className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
-                >
-                  <List size={16} />
-                </button>
-                <button
-                  type="button"
-                  className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
-                >
-                  <AlignLeft size={16} />
-                </button>
+                  <BookOpen size={16} className="text-primary" />
+                  Ringkasan Materi
+                </label>
+
+                <p className="text-[10px] sm:text-xs text-muted-foreground font-medium mt-1">
+                  Tulis penjelasan yang akan dibaca mahasiswa sebelum atau sesudah
+                  menonton video.
+                </p>
               </div>
-              <textarea
-                rows={5}
-                value={form.summary}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    summary: event.target.value,
-                  }))
-                }
-                placeholder="Tulis ringkasan dari materi video ini untuk dibaca mahasiswa..."
-                className="w-full px-4 py-3 bg-transparent text-sm font-medium text-foreground outline-none resize-none leading-relaxed"
-              />
+
+              <span className="text-[10px] sm:text-xs font-bold text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-lg shrink-0">
+                {form.summary.trim().length} karakter
+              </span>
             </div>
+
+            <textarea
+              id="materialSummary"
+              rows={6}
+              value={form.summary}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  summary: event.target.value,
+                }))
+              }
+              placeholder="Contoh: Materi ini membahas langkah-langkah pemeriksaan dasar pada ibu hamil, mulai dari anamnesis, pemeriksaan tanda vital, hingga dokumentasi hasil pemeriksaan."
+              className="w-full px-4 py-3.5 rounded-xl bg-muted/30 border border-border text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-y min-h-36 leading-relaxed transition-all"
+            />
           </div>
 
           <div className="p-4 sm:p-5 rounded-2xl border border-border bg-card shadow-sm">

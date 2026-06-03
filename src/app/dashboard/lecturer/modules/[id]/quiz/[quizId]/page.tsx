@@ -1,58 +1,51 @@
-"use client";
+import { Role } from "@prisma/client";
+import { notFound } from "next/navigation";
 
-import { useParams } from "next/navigation";
-import { useState } from "react";
+import { LecturerQuizPreviewClient } from "@/components/dashboard/lecturer/modules/quiz-preview/LecturerQuizPreviewClient";
+import { getLecturerQuizPreviewData } from "@/data/learning/lecturer/lecturer-quiz-preview.server";
+import { requireRole } from "@/lib/auth/guards";
 
-import { LecturerPreviewBackButton } from "@/components/dashboard/lecturer/modules/preview/LecturerPreviewBackButton";
-import { LecturerPreviewModeBadge } from "@/components/dashboard/lecturer/modules/preview/LecturerPreviewModeBadge";
-import { LecturerQuizAnalysisTab } from "@/components/dashboard/lecturer/modules/quiz-preview/LecturerQuizAnalysisTab";
-import { LecturerQuizOverviewTab } from "@/components/dashboard/lecturer/modules/quiz-preview/LecturerQuizOverviewTab";
-import { LecturerQuizPreviewHeader } from "@/components/dashboard/lecturer/modules/quiz-preview/LecturerQuizPreviewHeader";
-import { LecturerQuizPreviewTabs } from "@/components/dashboard/lecturer/modules/quiz-preview/LecturerQuizPreviewTabs";
-import {
-  getLecturerQuizPreviewData,
-  type LecturerQuizPreviewTab,
-} from "@/data/learning/lecturer/lecturer-quiz-preview";
+type LecturerQuizPreviewPageProps = {
+  params: Promise<{
+    id: string;
+    quizId: string;
+  }>;
+};
 
-export default function LecturerQuizPreviewPage() {
-  const params = useParams<{ id: string; quizId: string }>();
+function parsePositiveId(value: string) {
+  const id = Number(value);
 
-  const [activeTab, setActiveTab] =
-    useState<LecturerQuizPreviewTab>("overview");
-  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
 
-  const { quizInfo, generalStats, leaderboard, questionStats } =
-    getLecturerQuizPreviewData();
+  return id;
+}
 
-  return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10 sm:pb-12 max-w-350 mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-        <LecturerPreviewBackButton moduleId={params.id} />
+export default async function LecturerQuizPreviewPage({
+  params,
+}: LecturerQuizPreviewPageProps) {
+  const currentUser = await requireRole("/dashboard/lecturer/modules", [
+    Role.DOSEN,
+  ]);
 
-        <LecturerPreviewModeBadge label="Mode Analisis & Pratinjau Kuis" />
-      </div>
+  const { id, quizId } = await params;
+  const moduleId = parsePositiveId(id);
+  const parsedQuizId = parsePositiveId(quizId);
 
-      <LecturerQuizPreviewHeader quizInfo={quizInfo} />
+  if (!moduleId || !parsedQuizId) {
+    notFound();
+  }
 
-      <LecturerQuizPreviewTabs
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      />
+  const data = await getLecturerQuizPreviewData({
+    moduleId,
+    quizId: parsedQuizId,
+    dosenProfileId: currentUser.dosenProfile?.id,
+  });
 
-      {activeTab === "overview" && (
-        <LecturerQuizOverviewTab
-          stats={generalStats}
-          leaderboard={leaderboard}
-        />
-      )}
+  if (!data) {
+    notFound();
+  }
 
-      {activeTab === "analysis" && (
-        <LecturerQuizAnalysisTab
-          questions={questionStats}
-          activeQuestionIndex={activeQuestionIndex}
-          onQuestionChange={setActiveQuestionIndex}
-        />
-      )}
-    </div>
-  );
+  return <LecturerQuizPreviewClient moduleId={String(moduleId)} data={data} />;
 }

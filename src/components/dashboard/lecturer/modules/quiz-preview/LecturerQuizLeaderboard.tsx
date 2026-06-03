@@ -34,72 +34,72 @@ export function LecturerQuizLeaderboard({
         </h2>
       </div>
 
-      <div className="overflow-x-auto scrollbar-thin">
-        <table className="w-full text-left text-sm whitespace-nowrap">
-          <thead>
-            <tr className="border-b border-border bg-muted/30">
-              <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider w-16 text-center">
-                Rank
-              </th>
-              <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider">
-                Nama Peserta
-              </th>
-              <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider">
-                NPM / NIM
-              </th>
-              <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider">
-                Skor Akhir
-              </th>
-              <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider text-right">
-                Waktu Pengerjaan
-              </th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {leaderboard.map((student) => (
-              <tr
-                key={`${student.rank}-${student.nim}`}
-                className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
-              >
-                <td className="p-4 sm:px-6 text-center">
-                  <span
-                    className={`inline-flex items-center justify-center w-8 h-8 rounded-lg font-extrabold text-xs ${getRankClass(
-                      student.rank
-                    )}`}
-                  >
-                    #{student.rank}
-                  </span>
-                </td>
-
-                <td className="p-4 sm:px-6 font-extrabold text-foreground">
-                  {student.name}
-                </td>
-
-                <td className="p-4 sm:px-6 text-muted-foreground font-mono font-medium text-xs sm:text-sm">
-                  {student.nim}
-                </td>
-
-                <td className="p-4 sm:px-6">
-                  <span
-                    className={`font-extrabold px-3 py-1 rounded-lg text-xs ${
-                      student.score >= 80
-                        ? "bg-green-500/10 text-green-500"
-                        : "bg-red-500/10 text-red-500"
-                    }`}
-                  >
-                    {student.score}
-                  </span>
-                </td>
-
-                <td className="p-4 sm:px-6 text-right font-medium text-muted-foreground">
-                  {student.time}
-                </td>
+      {leaderboard.length === 0 ? (
+        <div className="p-8 text-center text-sm font-medium text-muted-foreground">
+          Belum ada mahasiswa yang menyelesaikan kuis ini.
+        </div>
+      ) : (
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider w-16 text-center">
+                  Rank
+                </th>
+                <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider">
+                  Nama Peserta
+                </th>
+                <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider">
+                  NPM / NIM
+                </th>
+                <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider">
+                  Skor
+                </th>
+                <th className="p-4 sm:px-6 font-extrabold text-muted-foreground text-xs uppercase tracking-wider text-right">
+                  Waktu Pengerjaan
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+
+            <tbody>
+              {leaderboard.map((student) => (
+                <tr
+                  key={`${student.rank}-${student.nim}`}
+                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                >
+                  <td className="p-4 sm:px-6 text-center">
+                    <span
+                      className={`inline-flex items-center justify-center w-8 h-8 rounded-lg font-extrabold text-xs ${getRankClass(
+                        student.rank
+                      )}`}
+                    >
+                      #{student.rank}
+                    </span>
+                  </td>
+
+                  <td className="p-4 sm:px-6 font-extrabold text-foreground">
+                    {student.name}
+                  </td>
+
+                  <td className="p-4 sm:px-6 text-muted-foreground font-mono font-medium text-xs sm:text-sm">
+                    {student.nim}
+                  </td>
+
+                  <td className="p-4 sm:px-6">
+                    <span className="font-extrabold px-3 py-1 rounded-lg text-xs bg-primary/10 text-primary">
+                      {student.score.toFixed(1)}
+                    </span>
+                  </td>
+
+                  <td className="p-4 sm:px-6 text-right font-medium text-muted-foreground">
+                    {student.time}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
