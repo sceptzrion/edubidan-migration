@@ -1,9 +1,6 @@
 import { Search } from "lucide-react";
 
-import {
-  PASS_THRESHOLD,
-  type LecturerGradebookRow,
-} from "@/data/learning/lecturer/lecturer-gradebook";
+import type { LecturerGradebookRow } from "@/data/learning/lecturer/lecturer-gradebook";
 
 interface LecturerGradebookTableProps {
   quizzes: string[];
@@ -16,6 +13,21 @@ export function LecturerGradebookTable({
   rows,
   search,
 }: LecturerGradebookTableProps) {
+  if (quizzes.length === 0) {
+    return (
+      <div className="p-12 text-center">
+        <Search size={32} className="mx-auto text-muted-foreground/30 mb-3" />
+        <p className="text-sm font-bold text-foreground">
+          Belum ada kuis evaluasi
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Nilai mahasiswa akan tampil setelah dosen menambahkan kuis pada modul
+          ini.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="overflow-x-auto scrollbar-thin">
@@ -32,7 +44,7 @@ export function LecturerGradebookTable({
 
               {quizzes.map((quiz, index) => (
                 <th
-                  key={quiz}
+                  key={`${quiz}-${index}`}
                   className="text-center p-4 sm:px-6 text-muted-foreground font-medium"
                 >
                   <div className="text-[10px] font-extrabold uppercase tracking-wider text-primary mb-1">
@@ -46,10 +58,6 @@ export function LecturerGradebookTable({
 
               <th className="text-center p-4 sm:px-6 text-muted-foreground bg-primary/5 font-bold uppercase tracking-wider text-xs border-l border-border/50">
                 Rata-rata
-              </th>
-
-              <th className="text-center p-4 sm:px-6 text-muted-foreground font-bold uppercase tracking-wider text-xs">
-                Status
               </th>
             </tr>
           </thead>
@@ -77,20 +85,17 @@ export function LecturerGradebookTable({
                 </td>
 
                 {row.scores.map((score, index) => (
-                  <td key={`${row.nim}-${index}`} className="p-4 sm:px-6 text-center">
+                  <td
+                    key={`${row.nim}-${index}`}
+                    className="p-4 sm:px-6 text-center"
+                  >
                     {score === null ? (
                       <span className="text-xs font-bold text-muted-foreground/50 italic bg-muted/50 px-2 py-1 rounded-md">
                         Belum
                       </span>
                     ) : (
-                      <span
-                        className={`text-sm font-extrabold ${
-                          score >= PASS_THRESHOLD
-                            ? "text-foreground"
-                            : "text-amber-600"
-                        }`}
-                      >
-                        {score}
+                      <span className="text-sm font-extrabold text-foreground">
+                        {score.toFixed(1)}
                       </span>
                     )}
                   </td>
@@ -99,18 +104,6 @@ export function LecturerGradebookTable({
                 <td className="p-4 sm:px-6 text-center bg-primary/5 border-l border-border/50">
                   <span className="text-base sm:text-lg font-extrabold text-primary">
                     {row.average.toFixed(1)}
-                  </span>
-                </td>
-
-                <td className="p-4 sm:px-6 text-center">
-                  <span
-                    className={`px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-extrabold tracking-wider uppercase ${
-                      row.status === "Lulus"
-                        ? "bg-green-500/10 text-green-600 border border-green-500/20"
-                        : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
-                    }`}
-                  >
-                    {row.status}
                   </span>
                 </td>
               </tr>

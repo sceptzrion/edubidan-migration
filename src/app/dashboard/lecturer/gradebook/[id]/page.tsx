@@ -1,40 +1,48 @@
-"use client";
+import { Role } from "@prisma/client";
+import { notFound } from "next/navigation";
 
-import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { LecturerGradebookDetailClient } from "@/components/dashboard/lecturer/gradebook/LecturerGradebookDetailClient";
+import { getLecturerGradebookDetailData } from "@/data/learning/lecturer/lecturer-gradebook.server";
+import { requireRole } from "@/lib/auth/guards";
 
-import { LecturerGradebookBackButton } from "@/components/dashboard/lecturer/gradebook/LecturerGradebookBackButton";
-import { LecturerGradebookDetailHeader } from "@/components/dashboard/lecturer/gradebook/LecturerGradebookDetailHeader";
-import { LecturerGradebookTableCard } from "@/components/dashboard/lecturer/gradebook/LecturerGradebookTableCard";
-import {
-  getLecturerGradebookDetail,
-  getLecturerGradebookRows,
-} from "@/data/learning/lecturer/lecturer-gradebook";
+type LecturerGradebookDetailPageProps = {
+  params: Promise<{
+    id: string;
+  }>;
+};
 
-export default function LecturerGradebookDetailPage() {
-  const params = useParams<{ id: string }>();
-  const moduleId = params.id ?? "1";
+function parseModuleId(value: string) {
+  const moduleId = Number(value);
 
-  const [search, setSearch] = useState("");
+  if (!Number.isInteger(moduleId) || moduleId <= 0) {
+    return null;
+  }
 
-  const data = getLecturerGradebookDetail(moduleId);
+  return moduleId;
+}
 
-  const rows = useMemo(() => {
-    return getLecturerGradebookRows(data.students, search);
-  }, [data.students, search]);
+export default async function LecturerGradebookDetailPage({
+  params,
+}: LecturerGradebookDetailPageProps) {
+  const currentUser = await requireRole("/dashboard/lecturer/gradebook", [
+    Role.DOSEN,
+  ]);
 
-  return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10 sm:pb-12">
-      <LecturerGradebookBackButton />
+  const { id } = await params;
+  const moduleId = parseModuleId(id);
 
-      <LecturerGradebookDetailHeader data={data} />
+  if (!moduleId) {
+    notFound();
+  }
 
-      <LecturerGradebookTableCard
-        search={search}
-        quizzes={data.quizzes}
-        rows={rows}
-        onSearchChange={setSearch}
-      />
-    </div>
-  );
+  const data = await getLecturerGradebookDetailData({
+    moduleId,
+    dosenProfileId: currentUser.dosenProfile?.id,
+  });
+
+  if (!data) {
+    notFound();
+  }
+
+  return <LecturerGradebookDetailClient data={data} />;
 }

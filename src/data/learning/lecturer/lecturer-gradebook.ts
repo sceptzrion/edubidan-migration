@@ -20,10 +20,7 @@ export interface LecturerGradebookDetail {
 
 export interface LecturerGradebookRow extends LecturerGradebookStudent {
   average: number;
-  status: "Lulus" | "Mengulang";
 }
-
-export const PASS_THRESHOLD = 70;
 
 export const lecturerGradebookDetails: Record<string, LecturerGradebookDetail> =
   {
@@ -83,13 +80,9 @@ export function getLecturerGradebookRows(
           validScores.length
         : 0;
 
-      const status: LecturerGradebookRow["status"] =
-        average >= PASS_THRESHOLD ? "Lulus" : "Mengulang";
-
       return {
         ...student,
         average,
-        status,
       };
     })
     .filter((student) => {
