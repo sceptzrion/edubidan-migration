@@ -3,6 +3,8 @@
 import { ChevronDown, Home, LogOut, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { clearStoredUser } from "@/lib/auth/client-auth";
+
 interface LecturerAccountMenuProps {
   isOpen: boolean;
   onToggle: () => void;
@@ -19,6 +21,22 @@ export function LecturerAccountMenu({
   const navigateTo = (path: string) => {
     router.push(path);
     onClose();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } catch (error) {
+      console.error("Logout request failed:", error);
+    } finally {
+      clearStoredUser();
+      onClose();
+      router.replace("/");
+      router.refresh();
+    }
   };
 
   return (
@@ -76,7 +94,7 @@ export function LecturerAccountMenu({
           <div className="border-t border-border mt-1 pt-1">
             <button
               type="button"
-              onClick={() => navigateTo("/")}
+              onClick={handleLogout}
               className="w-full flex items-center gap-2.5 sm:gap-3 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-extrabold text-red-500 hover:text-red-600 hover:bg-red-500/10 transition-colors"
             >
               <LogOut size={16} className="sm:w-4.5 sm:h-4.5" />

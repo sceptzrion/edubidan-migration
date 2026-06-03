@@ -58,7 +58,6 @@ export function LoginForm() {
   const searchParams = useSearchParams();
 
   const nextPath = searchParams.get("next");
-  const reasonMessage = getReasonMessage(searchParams.get("reason"));
 
   const [remember, setRemember] = useState(false);
   const [email, setEmail] = useState("");
@@ -66,17 +65,25 @@ export function LoginForm() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [reasonMessage, setReasonMessage] = useState(() =>
+    getReasonMessage(searchParams.get("reason"))
+  );
 
   const isFormValid = useMemo(() => {
     return email.trim().length > 0 && password.trim().length > 0;
   }, [email, password]);
+
+  const clearMessages = () => {
+    setErrorMessage("");
+    setReasonMessage("");
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!isFormValid || isSubmitting) return;
 
-    setErrorMessage("");
+    clearMessages();
     setIsSubmitting(true);
 
     try {
@@ -157,7 +164,7 @@ export function LoginForm() {
                 value={email}
                 onChange={(event) => {
                   setEmail(event.target.value);
-                  setErrorMessage("");
+                  clearMessages();
                 }}
                 placeholder="Masukkan email"
                 className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-card border border-border focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
@@ -172,7 +179,7 @@ export function LoginForm() {
             value={password}
             onChange={(value) => {
               setPassword(value);
-              setErrorMessage("");
+              clearMessages();
             }}
             placeholder="Masukkan kata sandi"
             inputClassName="py-3.5 pl-11 pr-12"
