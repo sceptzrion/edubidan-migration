@@ -1,6 +1,8 @@
+import { Role } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { joinModuleByAccessCode } from "@/services/enrollment.service";
+import { getCurrentSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +51,38 @@ function getJoinModuleStatusCode(
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await getCurrentSessionUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Authentication required",
+          data: null,
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
+    if (currentUser.role !== Role.MAHASISWA) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Only mahasiswa can join modules",
+          data: null,
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
     const body = await request.json();
 
     const result = await joinModuleByAccessCode({
-      userId: body.userId,
+      userId: currentUser.id,
       accessCode: body.accessCode,
     });
 

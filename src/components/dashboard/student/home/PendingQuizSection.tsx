@@ -34,7 +34,7 @@ export function PendingQuizSection({ quizzes }: PendingQuizSectionProps) {
               title={quiz.title}
               date={quiz.status}
               onClick={() =>
-                router.push(`/dashboard/modules/${quiz.moduleId}/lesson/${quiz.id}`)
+                router.push(`/dashboard/modules/${quiz.moduleId}/quiz/${quiz.id}`)
               }
             />
           ))}
