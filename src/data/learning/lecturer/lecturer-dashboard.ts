@@ -1,4 +1,4 @@
-import { ContentType } from "@prisma/client";
+import { ContentType, ModuleStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import type { DashboardSessionUser } from "@/lib/auth/session-user";
@@ -39,6 +39,10 @@ export interface LecturerDashboardData {
   quickActions: LecturerQuickAction[];
   recentActivities: LecturerRecentActivity[];
 }
+
+type LecturerActivityWithDate = LecturerRecentActivity & {
+  createdAt: Date;
+};
 
 function formatRelativeTime(date: Date) {
   const diffMs = Date.now() - date.getTime();
@@ -110,6 +114,137 @@ function getEmptyStats(): LecturerDashboardStat[] {
   ];
 }
 
+function getModuleStatusHighlight(status: ModuleStatus) {
+  if (status === ModuleStatus.PUBLIK) {
+    return "Publik";
+  }
+
+  return "Draft";
+}
+
+async function getRelevantLecturerActivities(dosenProfileId: number) {
+  const [recentEnrollments, recentQuizAttempts, recentModules] =
+    await Promise.all([
+      prisma.enrollment.findMany({
+        where: {
+          isKicked: false,
+          module: {
+            dosenProfileId,
+          },
+        },
+        orderBy: {
+          joinedAt: "desc",
+        },
+        take: 3,
+        select: {
+          id: true,
+          joinedAt: true,
+          user: {
+            select: {
+              name: true,
+            },
+          },
+          module: {
+            select: {
+              title: true,
+            },
+          },
+        },
+      }),
+      prisma.quizAttempt.findMany({
+        where: {
+          isCompleted: true,
+          kuis: {
+            content: {
+              module: {
+                dosenProfileId,
+              },
+            },
+          },
+        },
+        orderBy: {
+          submittedAt: "desc",
+        },
+        take: 3,
+        select: {
+          id: true,
+          score: true,
+          startedAt: true,
+          submittedAt: true,
+          user: {
+            select: {
+              name: true,
+            },
+          },
+          kuis: {
+            select: {
+              title: true,
+            },
+          },
+        },
+      }),
+      prisma.module.findMany({
+        where: {
+          dosenProfileId,
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+        take: 3,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+  const enrollmentActivities: LecturerActivityWithDate[] =
+    recentEnrollments.map((enrollment) => ({
+      id: `enrollment-${enrollment.id}`,
+      text: `${enrollment.user.name} bergabung pada modul ${enrollment.module.title}`,
+      highlight: "Peserta baru",
+      time: formatRelativeTime(enrollment.joinedAt),
+      createdAt: enrollment.joinedAt,
+    }));
+
+  const quizAttemptActivities: LecturerActivityWithDate[] =
+    recentQuizAttempts.map((attempt) => {
+      const completedAt = attempt.submittedAt ?? attempt.startedAt;
+      const roundedScore = Math.round(attempt.score ?? 0);
+
+      return {
+        id: `quiz-attempt-${attempt.id}`,
+        text: `${attempt.user.name} menyelesaikan kuis ${attempt.kuis.title}`,
+        highlight: `Skor: ${roundedScore}`,
+        time: formatRelativeTime(completedAt),
+        createdAt: completedAt,
+      };
+    });
+
+  const moduleActivities: LecturerActivityWithDate[] = recentModules.map(
+    (module) => ({
+      id: `module-${module.id}`,
+      text: `Modul ${module.title} diperbarui`,
+      highlight: getModuleStatusHighlight(module.status),
+      time: formatRelativeTime(module.updatedAt),
+      createdAt: module.updatedAt,
+    })
+  );
+
+  return [
+    ...enrollmentActivities,
+    ...quizAttemptActivities,
+    ...moduleActivities,
+  ]
+    .sort((firstActivity, secondActivity) => {
+      return secondActivity.createdAt.getTime() - firstActivity.createdAt.getTime();
+    })
+    .slice(0, 3)
+    .map(({ createdAt: _createdAt, ...activity }) => activity);
+}
+
 export async function getLecturerDashboardData(
   currentUser: DashboardSessionUser
 ): Promise<LecturerDashboardData> {
@@ -125,67 +260,51 @@ export async function getLecturerDashboardData(
     };
   }
 
-  const [
-    moduleCount,
-    quizCount,
-    activeEnrollmentCount,
-    averageScore,
-    activityLogs,
-  ] = await Promise.all([
-    prisma.module.count({
-      where: {
-        dosenProfileId,
-      },
-    }),
-    prisma.moduleContent.count({
-      where: {
-        kind: ContentType.KUIS,
-        module: {
+  const [moduleCount, quizCount, activeEnrollmentCount, averageScore] =
+    await Promise.all([
+      prisma.module.count({
+        where: {
           dosenProfileId,
         },
-      },
-    }),
-    prisma.enrollment.count({
-      where: {
-        isKicked: false,
-        module: {
-          dosenProfileId,
+      }),
+      prisma.moduleContent.count({
+        where: {
+          kind: ContentType.KUIS,
+          module: {
+            dosenProfileId,
+          },
         },
-      },
-    }),
-    prisma.quizAttempt.aggregate({
-      where: {
-        isCompleted: true,
-        score: {
-          not: null,
+      }),
+      prisma.enrollment.count({
+        where: {
+          isKicked: false,
+          module: {
+            dosenProfileId,
+          },
         },
-        kuis: {
-          content: {
-            module: {
-              dosenProfileId,
+      }),
+      prisma.quizAttempt.aggregate({
+        where: {
+          isCompleted: true,
+          score: {
+            not: null,
+          },
+          kuis: {
+            content: {
+              module: {
+                dosenProfileId,
+              },
             },
           },
         },
-      },
-      _avg: {
-        score: true,
-      },
-    }),
-    prisma.activityLog.findMany({
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 3,
-      select: {
-        id: true,
-        actionType: true,
-        description: true,
-        createdAt: true,
-      },
-    }),
-  ]);
+        _avg: {
+          score: true,
+        },
+      }),
+    ]);
 
   const roundedAverageScore = Math.round(averageScore._avg.score ?? 0);
+  const recentActivities = await getRelevantLecturerActivities(dosenProfileId);
 
   return {
     lecturerName,
@@ -216,11 +335,6 @@ export async function getLecturerDashboardData(
       },
     ],
     quickActions: getQuickActions(),
-    recentActivities: activityLogs.map((activity) => ({
-      id: String(activity.id),
-      text: activity.description,
-      highlight: activity.actionType,
-      time: formatRelativeTime(activity.createdAt),
-    })),
+    recentActivities,
   };
 }
