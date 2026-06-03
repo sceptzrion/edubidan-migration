@@ -349,6 +349,7 @@ export function toModuleTaskItem(item: LearningItem) {
       item.timeLimitMinutes ?? item.estimatedMinutes
     } Menit`,
     isCompleted: item.isCompleted,
+    score: item.latestScore,
   };
 }
 
