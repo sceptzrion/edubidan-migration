@@ -5,6 +5,8 @@ import { useSyncExternalStore } from "react";
 
 const THEME_STORAGE_KEY = "edubidan-theme";
 
+type ThemeMode = "light" | "dark";
+
 function subscribe(callback: () => void) {
   window.addEventListener("storage", callback);
 
@@ -13,13 +15,32 @@ function subscribe(callback: () => void) {
   };
 }
 
-function getSnapshot() {
+function applyThemeClass(theme: ThemeMode) {
+  if (theme === "dark") {
+    document.documentElement.classList.add("dark");
+    return;
+  }
+
+  document.documentElement.classList.remove("dark");
+}
+
+function getStoredTheme(): ThemeMode {
   if (typeof window === "undefined") return "light";
 
   return localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
 }
 
-function getServerSnapshot() {
+function getSnapshot() {
+  const theme = getStoredTheme();
+
+  if (typeof window !== "undefined") {
+    applyThemeClass(theme);
+  }
+
+  return theme;
+}
+
+function getServerSnapshot(): ThemeMode {
   return "light";
 }
 
@@ -33,15 +54,10 @@ export function ThemeToggle() {
   const isDark = theme === "dark";
 
   const toggleTheme = () => {
-    const nextTheme = isDark ? "light" : "dark";
+    const nextTheme: ThemeMode = isDark ? "light" : "dark";
 
     localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-
-    if (nextTheme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    applyThemeClass(nextTheme);
 
     window.dispatchEvent(new StorageEvent("storage"));
   };

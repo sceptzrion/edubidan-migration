@@ -87,12 +87,15 @@ export default function LecturerModulesPage() {
         onRemove={handleRemove}
       />
 
-      <ModuleFormModal
-        isOpen={open}
-        editing={editing}
-        onClose={handleCloseModal}
-        onSave={handleSave}
-      />
+      {open && (
+        <ModuleFormModal
+          key={editing?.id ?? "create"}
+          isOpen={open}
+          editing={editing}
+          onClose={handleCloseModal}
+          onSave={handleSave}
+        />
+      )}
     </div>
   );
 }
