@@ -1,6 +1,13 @@
+import { ModuleStatus, Role } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
-import { createModule, getModules } from "@/services/module.service";
+import {
+  createModule,
+  getModules,
+  updateModulePublishStatus,
+} from "@/services/module.service";
+import { getCurrentSessionUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +24,94 @@ function getCreateModuleErrorMessage(
   };
 
   return messages[error];
+}
+
+function normalizeLecturerModuleStatus(value: unknown) {
+  if (value === "Publik" || value === ModuleStatus.PUBLIK) {
+    return ModuleStatus.PUBLIK;
+  }
+
+  if (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    value === "Draft" ||
+    value === ModuleStatus.DRAFT
+  ) {
+    return ModuleStatus.DRAFT;
+  }
+
+  return null;
+}
+
+function generateModuleAccessCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let suffix = "";
+
+  for (let index = 0; index < 3; index += 1) {
+    suffix += chars[Math.floor(Math.random() * chars.length)];
+  }
+
+  return `BIDAN-${suffix}`;
+}
+
+async function generateUniqueModuleAccessCode() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const accessCode = generateModuleAccessCode();
+
+    const existingModule = await prisma.module.findUnique({
+      where: {
+        accessCode,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existingModule) {
+      return accessCode;
+    }
+  }
+
+  return null;
+}
+
+async function getAuthenticatedDosenProfileId() {
+  const currentUser = await getCurrentSessionUser();
+
+  if (!currentUser) {
+    return {
+      success: false as const,
+      status: 401,
+      message: "Authentication required",
+      dosenProfileId: null,
+    };
+  }
+
+  if (currentUser.role !== Role.DOSEN) {
+    return {
+      success: false as const,
+      status: 403,
+      message: "Only lecturers can manage modules",
+      dosenProfileId: null,
+    };
+  }
+
+  if (!currentUser.dosenProfile?.id) {
+    return {
+      success: false as const,
+      status: 403,
+      message: "Dosen profile not found",
+      dosenProfileId: null,
+    };
+  }
+
+  return {
+    success: true as const,
+    status: 200,
+    message: "OK",
+    dosenProfileId: currentUser.dosenProfile.id,
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -52,14 +147,58 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await getAuthenticatedDosenProfileId();
+
+    if (!auth.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: auth.message,
+          data: null,
+        },
+        {
+          status: auth.status,
+        }
+      );
+    }
+
     const body = await request.json();
+    const status = normalizeLecturerModuleStatus(body.status);
+
+    if (!status) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid module status",
+          data: null,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const accessCode = await generateUniqueModuleAccessCode();
+
+    if (!accessCode) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Failed to generate unique access code",
+          data: null,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
 
     const result = await createModule({
-      dosenProfileId: body.dosenProfileId,
+      dosenProfileId: auth.dosenProfileId,
       title: body.title,
       description: body.description,
       bannerUrl: body.bannerUrl,
-      accessCode: body.accessCode,
+      accessCode,
       estimatedMinutes: body.estimatedMinutes,
       objectives: body.objectives,
     });
@@ -73,6 +212,50 @@ export async function POST(request: NextRequest) {
         },
         {
           status: result.error === "DOSEN_PROFILE_NOT_FOUND" ? 404 : 400,
+        }
+      );
+    }
+
+    if (!result.module) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Failed to retrieve created module",
+          data: null,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    if (status === ModuleStatus.PUBLIK) {
+      const publishResult = await updateModulePublishStatus({
+        id: result.module.id,
+        status,
+      });
+
+      if (!publishResult.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Module created but failed to update publish status",
+            data: result.module,
+          },
+          {
+            status: 500,
+          }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Module created successfully",
+          data: publishResult.module,
+        },
+        {
+          status: 201,
         }
       );
     }
