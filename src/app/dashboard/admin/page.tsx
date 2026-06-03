@@ -4,8 +4,8 @@ import { AdminRecentActivities } from "@/components/dashboard/admin/home/AdminRe
 import { AdminStatsGrid } from "@/components/dashboard/admin/home/AdminStatsGrid";
 import { getAdminDashboardData } from "@/data/learning/admin/admin-dashboard";
 
-export default function AdminHomePage() {
-  const dashboardData = getAdminDashboardData();
+export default async function AdminHomePage() {
+  const dashboardData = await getAdminDashboardData();
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">

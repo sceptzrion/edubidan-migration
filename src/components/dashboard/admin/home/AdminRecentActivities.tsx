@@ -17,7 +17,7 @@ export function AdminRecentActivities({
       {activities.length > 0 ? (
         <div className="space-y-5">
           {activities.map((activity, index) => (
-            <div key={activity.text} className="flex gap-4 relative group">
+            <div key={activity.id} className="flex gap-4 relative group">
               {index !== activities.length - 1 && (
                 <div className="absolute left-1.75 top-6 w-0.5 h-10 bg-border group-hover:bg-primary/30 transition-colors" />
               )}
