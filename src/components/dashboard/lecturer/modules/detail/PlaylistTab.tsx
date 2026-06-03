@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -15,6 +15,8 @@ import {
 
 import { MateriModal } from "@/components/dashboard/lecturer/modules/detail/lesson/MateriModal";
 import { KuisModal } from "@/components/dashboard/lecturer/modules/detail/quiz/KuisModal";
+import { AppToast, type AppToastState } from "@/components/ui/AppToast";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface PlaylistTabProps {
   moduleId: string;
@@ -61,6 +63,131 @@ export type LecturerKuisItem = {
 
 export type LecturerPlaylistItem = LecturerMateriItem | LecturerKuisItem;
 
+type MaterialApiData = {
+  id: number;
+  title: string;
+  description: string | null;
+  videoSource: "UPLOAD" | "EMBED";
+  videoUrl: string | null;
+  estimatedMinutes: number | null;
+  content: {
+    id: number;
+  };
+  objectives: Array<{
+    text: string;
+  }>;
+  tools: Array<{
+    name: string;
+  }>;
+};
+
+type MaterialApiResponse = {
+  success: boolean;
+  message: string;
+  data: MaterialApiData | null;
+};
+
+type DeleteApiResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    id: number;
+    contentId: number;
+  } | null;
+};
+
+function parseDurationToMinutes(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (!normalized || normalized === "--:--") {
+    return undefined;
+  }
+
+  const hourMatch = normalized.match(/(\d+)\s*(jam|j)/);
+  const minuteMatch = normalized.match(/(\d+)\s*(menit|min|m)/);
+
+  const hours = hourMatch ? Number(hourMatch[1]) : 0;
+  const minutes = minuteMatch ? Number(minuteMatch[1]) : 0;
+
+  if (hours > 0 || minutes > 0) {
+    return hours * 60 + minutes;
+  }
+
+  const plainNumber = Number(normalized.replace(/[^\d]/g, ""));
+
+  if (Number.isInteger(plainNumber) && plainNumber > 0) {
+    return plainNumber;
+  }
+
+  return undefined;
+}
+
+function formatDuration(minutes: number | null) {
+  if (!minutes || minutes <= 0) {
+    return "--:--";
+  }
+
+  if (minutes < 60) {
+    return `${minutes} menit`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (remainingMinutes === 0) {
+    return `${hours} jam`;
+  }
+
+  return `${hours} jam ${remainingMinutes} menit`;
+}
+
+function mapMaterialApiToItem(material: MaterialApiData): LecturerMateriItem {
+  return {
+    kind: "materi",
+    id: material.id,
+    contentId: material.content.id,
+    title: material.title,
+    videoSource: material.videoSource === "UPLOAD" ? "upload" : "embed",
+    videoUrl: material.videoUrl ?? undefined,
+    duration: formatDuration(material.estimatedMinutes),
+    summary: material.description ?? "",
+    objectives: material.objectives.map((objective) => objective.text),
+    tools: material.tools.map((tool) => tool.name),
+  };
+}
+
+function getFriendlyMaterialError(message: string) {
+  if (message === "Title is required") {
+    return "Judul materi tidak boleh kosong.";
+  }
+
+  if (message === "Video source is invalid") {
+    return "Sumber video tidak valid.";
+  }
+
+  if (message === "Estimated minutes must be a positive integer") {
+    return "Durasi materi harus berupa angka menit yang valid.";
+  }
+
+  if (message === "Authentication required") {
+    return "Sesi login sudah berakhir. Silakan login kembali.";
+  }
+
+  if (message === "Only lecturers can manage materials") {
+    return "Hanya akun dosen yang dapat mengelola materi.";
+  }
+
+  if (message === "Material not found or not owned by lecturer") {
+    return "Materi tidak ditemukan atau bukan milik akun dosen ini.";
+  }
+
+  if (message === "Module not found or not owned by lecturer") {
+    return "Modul tidak ditemukan atau bukan milik akun dosen ini.";
+  }
+
+  return "Terjadi kesalahan. Silakan coba lagi.";
+}
+
 export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
   const router = useRouter();
 
@@ -74,6 +201,27 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
   const [editingKuis, setEditingKuis] = useState<LecturerKuisItem | null>(null);
 
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [toast, setToast] = useState<AppToastState>(null);
+  const [contentToDelete, setContentToDelete] =
+    useState<LecturerPlaylistItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSavingMateri, setIsSavingMateri] = useState(false);
+
+  const sortedItems = useMemo(() => items, [items]);
+
+  const closeToast = useCallback(() => {
+    setToast(null);
+  }, []);
+
+  const showToast = useCallback((nextToast: NonNullable<AppToastState>) => {
+    setToast(nextToast);
+
+    if (nextToast.durationMs === 0) return;
+
+    window.setTimeout(() => {
+      setToast(null);
+    }, nextToast.durationMs ?? 3500);
+  }, []);
 
   const move = (from: number, to: number) => {
     if (from === to || to < 0 || to >= items.length) return;
@@ -87,38 +235,87 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
     setItems(next);
   };
 
-  const handleSaveMateri = (materi: LecturerMateriItem) => {
-    setItems((currentItems) => {
-      if (editingMateri) {
-        return currentItems.map((item) =>
-          item.id === editingMateri.id
-            ? {
-                ...materi,
-                id: editingMateri.id,
-                contentId: editingMateri.contentId,
-              }
-            : item
-        );
+  const handleSaveMateri = async (materi: LecturerMateriItem) => {
+    if (isSavingMateri) return;
+
+    setIsSavingMateri(true);
+    closeToast();
+
+    try {
+      const response = await fetch(
+        editingMateri
+          ? `/api/materials/${editingMateri.id}`
+          : `/api/modules/${moduleId}/contents`,
+        {
+          method: editingMateri ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            kind: "materi",
+            title: materi.title,
+            description: materi.summary,
+            videoSource: materi.videoSource,
+            videoUrl: materi.videoUrl,
+            estimatedMinutes: parseDurationToMinutes(materi.duration),
+            objectives: materi.objectives,
+            tools: materi.tools,
+          }),
+        }
+      );
+
+      const result = (await response.json()) as MaterialApiResponse;
+
+      if (!response.ok || !result.success || !result.data) {
+        showToast({
+          type: "error",
+          title: editingMateri ? "Gagal memperbarui materi" : "Gagal menambah materi",
+          message: getFriendlyMaterialError(result.message),
+        });
+        return;
       }
 
-      return [
-        {
-          ...materi,
-          id: Date.now(),
-        },
-        ...currentItems,
-      ];
-    });
+      const savedMateri = mapMaterialApiToItem(result.data);
 
-    setMateriOpen(false);
-    setEditingMateri(null);
+      setItems((currentItems) => {
+        if (editingMateri) {
+          return currentItems.map((item) =>
+            item.kind === "materi" && item.id === editingMateri.id
+              ? savedMateri
+              : item
+          );
+        }
+
+        return [savedMateri, ...currentItems];
+      });
+
+      setMateriOpen(false);
+      setEditingMateri(null);
+
+      showToast({
+        type: "success",
+        title: editingMateri ? "Materi berhasil diperbarui" : "Materi berhasil ditambahkan",
+        message: `Materi "${savedMateri.title}" sudah tersimpan.`,
+      });
+    } catch (error) {
+      console.error("Save material error:", error);
+
+      showToast({
+        type: "error",
+        title: editingMateri ? "Gagal memperbarui materi" : "Gagal menambah materi",
+        message: "Terjadi kesalahan koneksi. Silakan coba lagi.",
+      });
+    } finally {
+      setIsSavingMateri(false);
+    }
   };
 
   const handleSaveKuis = (kuis: LecturerKuisItem) => {
     setItems((currentItems) => {
       if (editingKuis) {
         return currentItems.map((item) =>
-          item.id === editingKuis.id
+          item.kind === "kuis" && item.id === editingKuis.id
             ? {
                 ...kuis,
                 id: editingKuis.id,
@@ -139,9 +336,17 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
 
     setKuisOpen(false);
     setEditingKuis(null);
+
+    showToast({
+      type: "info",
+      title: "Kuis belum tersimpan permanen",
+      message: "Backend kuis sudah disiapkan. Integrasi KuisModal ke API dilakukan di batch berikutnya.",
+    });
   };
 
   const closeMateriModal = () => {
+    if (isSavingMateri) return;
+
     setMateriOpen(false);
     setEditingMateri(null);
   };
@@ -151,8 +356,90 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
     setEditingKuis(null);
   };
 
+  const handleAskDelete = (item: LecturerPlaylistItem) => {
+    setContentToDelete(item);
+    closeToast();
+  };
+
+  const handleCancelDelete = () => {
+    if (isDeleting) return;
+
+    setContentToDelete(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!contentToDelete || isDeleting) return;
+
+    if (contentToDelete.kind === "kuis") {
+      setItems((currentItems) =>
+        currentItems.filter(
+          (item) =>
+            !(item.kind === contentToDelete.kind && item.id === contentToDelete.id)
+        )
+      );
+
+      setContentToDelete(null);
+
+      showToast({
+        type: "info",
+        title: "Kuis dihapus dari tampilan sementara",
+        message: "Hapus kuis permanen akan disambungkan pada batch integrasi KuisModal.",
+      });
+
+      return;
+    }
+
+    setIsDeleting(true);
+    closeToast();
+
+    try {
+      const response = await fetch(`/api/materials/${contentToDelete.id}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+
+      const result = (await response.json()) as DeleteApiResponse;
+
+      if (!response.ok || !result.success) {
+        showToast({
+          type: "error",
+          title: "Gagal menghapus materi",
+          message: getFriendlyMaterialError(result.message),
+        });
+        return;
+      }
+
+      setItems((currentItems) =>
+        currentItems.filter(
+          (item) =>
+            !(item.kind === "materi" && item.id === contentToDelete.id)
+        )
+      );
+
+      showToast({
+        type: "success",
+        title: "Materi berhasil dihapus",
+        message: `Materi "${contentToDelete.title}" sudah dihapus.`,
+      });
+
+      setContentToDelete(null);
+    } catch (error) {
+      console.error("Delete material error:", error);
+
+      showToast({
+        type: "error",
+        title: "Gagal menghapus materi",
+        message: "Terjadi kesalahan koneksi. Silakan coba lagi.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="animate-in fade-in duration-300">
+      <AppToast toast={toast} onClose={closeToast} />
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-lg sm:text-xl font-extrabold text-foreground">
@@ -192,6 +479,7 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
                     setEditingMateri(null);
                     setAddOpen(false);
                     setMateriOpen(true);
+                    closeToast();
                   }}
                   className="w-full flex items-start gap-3 px-4 py-3 hover:bg-muted text-left transition-colors"
                 >
@@ -216,6 +504,7 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
                     setEditingKuis(null);
                     setAddOpen(false);
                     setKuisOpen(true);
+                    closeToast();
                   }}
                   className="w-full flex items-start gap-3 px-4 py-3 hover:bg-muted text-left transition-colors"
                 >
@@ -238,10 +527,12 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
       </div>
 
       <div className="space-y-3 sm:space-y-4">
-        {items.map((item, index) => {
+        {sortedItems.map((item, index) => {
           const isMateri = item.kind === "materi";
           const questionCount =
-            item.kind === "kuis" ? item.questionCount ?? item.questions.length : 0;
+            item.kind === "kuis"
+              ? item.questionCount ?? item.questions.length
+              : 0;
 
           return (
             <div
@@ -349,6 +640,7 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
                       setEditingKuis(item);
                       setKuisOpen(true);
                     }
+                    closeToast();
                   }}
                   className="p-2 sm:p-2.5 hover:bg-muted rounded-xl text-muted-foreground hover:text-foreground transition-colors"
                   title="Edit Konten"
@@ -358,17 +650,7 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setItems((currentItems) =>
-                      currentItems.filter(
-                        (currentItem) =>
-                          !(
-                            currentItem.id === item.id &&
-                            currentItem.kind === item.kind
-                          )
-                      )
-                    )
-                  }
+                  onClick={() => handleAskDelete(item)}
                   className="p-2 sm:p-2.5 hover:bg-red-500/10 rounded-xl text-red-500 transition-colors"
                   title="Hapus Konten"
                 >
@@ -403,6 +685,22 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
           onClose={closeKuisModal}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(contentToDelete)}
+        title="Hapus konten?"
+        description={
+          contentToDelete
+            ? `Konten "${contentToDelete.title}" akan dihapus dari susunan pembelajaran.`
+            : "Konten ini akan dihapus."
+        }
+        confirmLabel="Hapus Konten"
+        cancelLabel="Batal"
+        variant="danger"
+        isLoading={isDeleting}
+        onCancel={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

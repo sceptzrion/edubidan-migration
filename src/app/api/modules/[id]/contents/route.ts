@@ -1,10 +1,8 @@
 import { ContentType, Role } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  createMaterial,
-  getModuleContents,
-} from "@/services/material.service";
+import { createQuiz } from "@/services/quiz-management.service";
+import { createMaterial, getModuleContents } from "@/services/material.service";
 import { getCurrentSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
@@ -34,6 +32,19 @@ function getCreateMaterialErrorMessage(
     TITLE_REQUIRED: "Title is required",
     VIDEO_SOURCE_INVALID: "Video source is invalid",
     ESTIMATED_MINUTES_INVALID: "Estimated minutes must be a positive integer",
+  };
+
+  return messages[error];
+}
+
+function getCreateQuizErrorMessage(
+  error: NonNullable<Awaited<ReturnType<typeof createQuiz>>["error"]>
+) {
+  const messages = {
+    MODULE_NOT_FOUND: "Module not found",
+    TITLE_REQUIRED: "Title is required",
+    TIME_LIMIT_INVALID: "Time limit must be a positive integer",
+    QUESTIONS_INVALID: "Quiz questions are invalid",
   };
 
   return messages[error];
@@ -87,6 +98,18 @@ async function getOwnedModule(moduleId: number, dosenProfileId: number) {
       id: true,
     },
   });
+}
+
+function normalizeContentKind(value: unknown) {
+  if (value === ContentType.MATERI || value === "materi") {
+    return ContentType.MATERI;
+  }
+
+  if (value === ContentType.KUIS || value === "kuis") {
+    return ContentType.KUIS;
+  }
+
+  return null;
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -192,12 +215,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const body = await request.json();
+    const kind = normalizeContentKind(body.kind);
 
-    if (body.kind !== ContentType.MATERI && body.kind !== "materi") {
+    if (!kind) {
       return NextResponse.json(
         {
           success: false,
-          message: "Only material content can be created from this endpoint",
+          message: "Invalid content kind",
           data: null,
         },
         {
@@ -206,22 +230,57 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const result = await createMaterial({
+    if (kind === ContentType.MATERI) {
+      const result = await createMaterial({
+        moduleId,
+        title: body.title,
+        description: body.description,
+        videoSource: body.videoSource,
+        videoUrl: body.videoUrl,
+        estimatedMinutes: body.estimatedMinutes,
+        objectives: body.objectives,
+        tools: body.tools,
+      });
+
+      if (!result.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: getCreateMaterialErrorMessage(result.error),
+            data: null,
+          },
+          {
+            status: result.error === "MODULE_NOT_FOUND" ? 404 : 400,
+          }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Material created successfully",
+          data: result.material,
+        },
+        {
+          status: 201,
+        }
+      );
+    }
+
+    const result = await createQuiz({
       moduleId,
       title: body.title,
       description: body.description,
-      videoSource: body.videoSource,
-      videoUrl: body.videoUrl,
-      estimatedMinutes: body.estimatedMinutes,
-      objectives: body.objectives,
-      tools: body.tools,
+      hasTimeLimit: body.hasTimeLimit,
+      timeLimitMinutes: body.timeLimitMinutes,
+      questions: body.questions,
     });
 
     if (!result.success) {
       return NextResponse.json(
         {
           success: false,
-          message: getCreateMaterialErrorMessage(result.error),
+          message: getCreateQuizErrorMessage(result.error),
           data: null,
         },
         {
@@ -233,8 +292,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json(
       {
         success: true,
-        message: "Material created successfully",
-        data: result.material,
+        message: "Quiz created successfully",
+        data: result.quiz,
       },
       {
         status: 201,
@@ -246,7 +305,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to create material",
+        message: "Failed to create module content",
         data: null,
       },
       {
