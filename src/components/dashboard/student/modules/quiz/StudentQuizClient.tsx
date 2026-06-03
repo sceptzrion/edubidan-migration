@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { QuizExitModal } from "@/components/dashboard/student/modules/lesson/QuizExitModal";
@@ -93,6 +93,8 @@ export function StudentQuizClient({ data }: StudentQuizClientProps) {
   const [submittedAnswersSnapshot, setSubmittedAnswersSnapshot] = useState<
     (number | null)[] | null
   >(null);
+
+  const hasAutoSubmittedRef = useRef(false);
 
   useFullscreenLock();
 
@@ -206,9 +208,31 @@ export function StudentQuizClient({ data }: StudentQuizClientProps) {
     startedAtMs,
   ]);
 
-  const handleTimeUp = useCallback(() => {
-    void submitQuiz();
-  }, [submitQuiz]);
+  useEffect(() => {
+    if (
+      !quizSession.isStarted ||
+      quizSession.showResult ||
+      quizSession.isReviewMode ||
+      quizSession.remainingSeconds !== 0 ||
+      hasAutoSubmittedRef.current
+    ) {
+      return;
+    }
+
+    hasAutoSubmittedRef.current = true;
+
+    const timeoutId = window.setTimeout(() => {
+      void submitQuiz();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    quizSession.isReviewMode,
+    quizSession.isStarted,
+    quizSession.remainingSeconds,
+    quizSession.showResult,
+    submitQuiz,
+  ]);
 
   if (questions.length === 0) {
     return <QuizNotFoundState moduleId={data.module.id} />;
@@ -225,6 +249,7 @@ export function StudentQuizClient({ data }: StudentQuizClientProps) {
       : "Bebas";
 
   const startQuiz = () => {
+    hasAutoSubmittedRef.current = false;
     setStartedAtMs(Date.now());
     setSubmitError("");
     setSubmittedAnswersSnapshot(null);
@@ -244,15 +269,6 @@ export function StudentQuizClient({ data }: StudentQuizClientProps) {
 
     setIsExitModalOpen(true);
   };
-
-  if (
-    quizSession.isStarted &&
-    !quizSession.showResult &&
-    !quizSession.isReviewMode &&
-    quizSession.remainingSeconds === 0
-  ) {
-    handleTimeUp();
-  }
 
   return (
     <div className="fixed inset-0 z-100 bg-background flex flex-col animate-in fade-in zoom-in-95 duration-300">

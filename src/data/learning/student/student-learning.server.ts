@@ -332,9 +332,9 @@ function mapModuleToLearningModule(params: {
   completedQuizIds: Set<number>;
   latestQuizAttemptByQuizId: Map<number, LatestQuizAttemptSummary>;
 }): LearningModule {
-  const module = params.enrollment.module;
+  const moduleData = params.enrollment.module;
 
-  const items: LearningItem[] = module.contents.flatMap((content) => {
+  const items: LearningItem[] = moduleData.contents.flatMap((content) => {
     if (content.kind === ContentType.MATERI && content.materi) {
       const isCompleted = params.completedMaterialIds.has(content.materi.id);
 
@@ -349,7 +349,7 @@ function mapModuleToLearningModule(params: {
         thumbnailUrl:
           content.materi.videoSource === VideoSource.EMBED
             ? getEmbedThumbnail(content.materi.videoUrl)
-            : module.bannerUrl ?? fallbackModuleImage,
+            : moduleData.bannerUrl ?? fallbackModuleImage,
         objectives: content.materi.objectives.map((objective) => objective.text),
         tools: content.materi.tools.map((tool) => tool.name),
       };
@@ -414,19 +414,19 @@ function mapModuleToLearningModule(params: {
   });
 
   return {
-    id: module.id,
-    title: module.title,
-    description: module.description ?? "Belum ada deskripsi modul.",
-    banner: module.bannerUrl ?? fallbackModuleImage,
-    thumbnail: module.bannerUrl ?? fallbackModuleImage,
+    id: moduleData.id,
+    title: moduleData.title,
+    description: moduleData.description ?? "Belum ada deskripsi modul.",
+    banner: moduleData.bannerUrl ?? fallbackModuleImage,
+    thumbnail: moduleData.bannerUrl ?? fallbackModuleImage,
     progress: progress.progress,
-    estimatedTime: formatDuration(module.estimatedMinutes),
+    estimatedTime: formatDuration(moduleData.estimatedMinutes),
     instructor: {
-      name: module.dosenProfile.user.name,
-      email: module.dosenProfile.user.email,
+      name: moduleData.dosenProfile.user.name,
+      email: moduleData.dosenProfile.user.email,
     },
-    objectives: module.objectives.map((objective) => objective.text),
-    participants: module.enrollments.map((enrollment) => ({
+    objectives: moduleData.objectives.map((objective) => objective.text),
+    participants: moduleData.enrollments.map((enrollment) => ({
       id: enrollment.user.id,
       name: enrollment.user.name,
       email: enrollment.user.email,
@@ -446,26 +446,30 @@ export async function getStudentModuleCards(
   } = await getStudentEnrollmentData(userId);
 
   return enrollments.map((enrollment) => {
-    const module = mapModuleToLearningModule({
+    const learningModule = mapModuleToLearningModule({
       enrollment,
       completedMaterialIds,
       completedQuizIds,
       latestQuizAttemptByQuizId,
     });
 
-    const lessons = module.items.filter((item) => item.kind === "materi").length;
-    const quizzes = module.items.filter((item) => item.kind === "kuis").length;
+    const lessons = learningModule.items.filter(
+      (item) => item.kind === "materi"
+    ).length;
+    const quizzes = learningModule.items.filter(
+      (item) => item.kind === "kuis"
+    ).length;
 
     return {
-      id: module.id,
-      title: module.title,
-      desc: module.description,
-      img: module.thumbnail,
-      progress: module.progress,
+      id: learningModule.id,
+      title: learningModule.title,
+      desc: learningModule.description,
+      img: learningModule.thumbnail,
+      progress: learningModule.progress,
       lessons,
       quizzes,
-      duration: module.estimatedTime,
-      instructor: module.instructor.name,
+      duration: learningModule.estimatedTime,
+      instructor: learningModule.instructor.name,
     };
   });
 }
@@ -488,17 +492,17 @@ export async function getStudentDashboardData(params: {
   let totalCompletedQuizzes = 0;
 
   enrollments.forEach((enrollment) => {
-    const module = mapModuleToLearningModule({
+    const learningModule = mapModuleToLearningModule({
       enrollment,
       completedMaterialIds,
       completedQuizIds,
       latestQuizAttemptByQuizId,
     });
 
-    const completedMaterials = module.items.filter(
+    const completedMaterials = learningModule.items.filter(
       (item) => item.kind === "materi" && item.isCompleted
     ).length;
-    const completedQuizzes = module.items.filter(
+    const completedQuizzes = learningModule.items.filter(
       (item) => item.kind === "kuis" && item.isCompleted
     ).length;
 
@@ -506,18 +510,19 @@ export async function getStudentDashboardData(params: {
     totalCompletedQuizzes += completedQuizzes;
 
     learningProgress.push({
-      id: module.id,
-      title: module.title,
-      progress: module.progress,
-      totalItems: module.items.length,
-      completedItems: module.items.filter((item) => item.isCompleted).length,
+      id: learningModule.id,
+      title: learningModule.title,
+      progress: learningModule.progress,
+      totalItems: learningModule.items.length,
+      completedItems: learningModule.items.filter((item) => item.isCompleted)
+        .length,
     });
 
-    module.items.forEach((item) => {
+    learningModule.items.forEach((item) => {
       if (item.kind === "kuis" && !item.isCompleted) {
         pendingQuizzes.push({
           id: item.id,
-          moduleId: module.id,
+          moduleId: learningModule.id,
           title: item.title,
           status: "Belum Dikerjakan",
         });
@@ -568,23 +573,25 @@ export async function getStudentLessonData(params: {
   moduleId: number;
   itemId: number;
 }): Promise<StudentLessonData | null> {
-  const module = await getStudentModuleDetailData({
+  const learningModule = await getStudentModuleDetailData({
     userId: params.userId,
     moduleId: params.moduleId,
   });
 
-  if (!module) return null;
+  if (!learningModule) return null;
 
-  const itemIndex = module.items.findIndex((item) => item.id === params.itemId);
-  const item = module.items[itemIndex];
+  const itemIndex = learningModule.items.findIndex(
+    (item) => item.id === params.itemId
+  );
+  const item = learningModule.items[itemIndex];
 
   if (!item) return null;
 
   return {
-    module,
+    module: learningModule,
     item,
     itemIndex,
-    previousItem: module.items[itemIndex - 1] ?? null,
-    nextItem: module.items[itemIndex + 1] ?? null,
+    previousItem: learningModule.items[itemIndex - 1] ?? null,
+    nextItem: learningModule.items[itemIndex + 1] ?? null,
   };
 }

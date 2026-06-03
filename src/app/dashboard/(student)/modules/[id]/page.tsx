@@ -33,14 +33,14 @@ export default async function StudentModuleDetailPage({
     notFound();
   }
 
-  const module = await getStudentModuleDetailData({
+  const learningModule = await getStudentModuleDetailData({
     userId: currentUser.id,
     moduleId,
   });
 
-  if (!module) {
+  if (!learningModule) {
     notFound();
   }
 
-  return <StudentModuleDetailClient module={module} />;
+  return <StudentModuleDetailClient module={learningModule} />;
 }
