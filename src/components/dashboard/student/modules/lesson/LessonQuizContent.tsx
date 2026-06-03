@@ -31,8 +31,12 @@ export function LessonQuizContent({
   return (
     <QuizStandby
       title={item.title}
-      questionCount={String(item.questions?.length ?? 0)}
+      questionCount={String(item.questions?.length ?? item.latestTotalQuestions ?? 0)}
       timeLimit={`${item.timeLimitMinutes ?? item.estimatedMinutes} Menit`}
+      isCompleted={item.isCompleted}
+      latestScore={item.latestScore}
+      latestCorrectCount={item.latestCorrectCount}
+      latestTotalQuestions={item.latestTotalQuestions}
       onStartQuiz={onStartQuiz}
       onPrev={previousItem ? onPrev : undefined}
       onNext={onNext}

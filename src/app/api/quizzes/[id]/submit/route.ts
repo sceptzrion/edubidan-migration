@@ -1,6 +1,8 @@
+import { Role } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { submitQuiz } from "@/services/quiz.service";
+import { getCurrentSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +71,34 @@ function getSubmitQuizStatusCode(
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
+    const currentUser = await getCurrentSessionUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Authentication required",
+          data: null,
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
+    if (currentUser.role !== Role.MAHASISWA) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Only mahasiswa can submit quiz",
+          data: null,
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
     const { id } = await context.params;
     const quizId = parseQuizId(id);
 
@@ -89,7 +119,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const result = await submitQuiz({
       kuisId: quizId,
-      userId: body.userId,
+      userId: currentUser.id,
       answers: body.answers,
       durationSeconds: body.durationSeconds,
     });

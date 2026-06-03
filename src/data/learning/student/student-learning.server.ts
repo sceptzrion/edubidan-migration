@@ -7,6 +7,12 @@ import type { LearningItem, LearningModule } from "@/types/learning";
 const fallbackModuleImage =
   "https://images.unsplash.com/photo-1559757175-5700dde675bc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080";
 
+type LatestQuizAttemptSummary = {
+  score: number | null;
+  totalCorrect: number;
+  totalQuestions: number;
+};
+
 export interface StudentModuleCardItem {
   id: number;
   title: string;
@@ -246,6 +252,7 @@ async function getStudentEnrollmentData(userId: number) {
       .map((content) => content.materi?.id)
       .filter((id): id is number => typeof id === "number")
   );
+
   const quizIds = enrollments.flatMap((enrollment) =>
     enrollment.module.contents
       .map((content) => content.kuis?.id)
@@ -279,12 +286,31 @@ async function getStudentEnrollmentData(userId: number) {
               not: null,
             },
           },
+          orderBy: {
+            submittedAt: "desc",
+          },
           select: {
             kuisId: true,
+            score: true,
+            totalCorrect: true,
+            totalQuestions: true,
+            submittedAt: true,
           },
         })
       : [],
   ]);
+
+  const latestQuizAttemptByQuizId = new Map<number, LatestQuizAttemptSummary>();
+
+  completedQuizAttempts.forEach((attempt) => {
+    if (!latestQuizAttemptByQuizId.has(attempt.kuisId)) {
+      latestQuizAttemptByQuizId.set(attempt.kuisId, {
+        score: attempt.score,
+        totalCorrect: attempt.totalCorrect ?? 0,
+        totalQuestions: attempt.totalQuestions ?? 0,
+      });
+    }
+  });
 
   return {
     enrollments,
@@ -294,21 +320,25 @@ async function getStudentEnrollmentData(userId: number) {
     completedQuizIds: new Set(
       completedQuizAttempts.map((attempt) => attempt.kuisId)
     ),
+    latestQuizAttemptByQuizId,
   };
 }
 
 function mapModuleToLearningModule(params: {
-  enrollment: Awaited<ReturnType<typeof getStudentEnrollmentData>>["enrollments"][number];
+  enrollment: Awaited<
+    ReturnType<typeof getStudentEnrollmentData>
+  >["enrollments"][number];
   completedMaterialIds: Set<number>;
   completedQuizIds: Set<number>;
+  latestQuizAttemptByQuizId: Map<number, LatestQuizAttemptSummary>;
 }): LearningModule {
   const module = params.enrollment.module;
 
   const items: LearningItem[] = module.contents.flatMap((content) => {
     if (content.kind === ContentType.MATERI && content.materi) {
-        const isCompleted = params.completedMaterialIds.has(content.materi.id);
+      const isCompleted = params.completedMaterialIds.has(content.materi.id);
 
-        const item: LearningItem = {
+      const item: LearningItem = {
         id: content.materi.id,
         kind: "materi",
         title: content.materi.title,
@@ -317,48 +347,55 @@ function mapModuleToLearningModule(params: {
         estimatedMinutes: content.materi.estimatedMinutes ?? 0,
         isCompleted,
         thumbnailUrl:
-            content.materi.videoSource === VideoSource.EMBED
+          content.materi.videoSource === VideoSource.EMBED
             ? getEmbedThumbnail(content.materi.videoUrl)
             : module.bannerUrl ?? fallbackModuleImage,
         objectives: content.materi.objectives.map((objective) => objective.text),
         tools: content.materi.tools.map((tool) => tool.name),
-        };
+      };
 
-        return [item];
+      return [item];
     }
 
     if (content.kind === ContentType.KUIS && content.kuis) {
-        const questions = content.kuis.soals.map((soal) => {
+      const latestAttempt = params.latestQuizAttemptByQuizId.get(
+        content.kuis.id
+      );
+
+      const questions = content.kuis.soals.map((soal) => {
         const correctIndex = soal.options.findIndex((option) => option.isCorrect);
 
         return {
-            id: soal.id,
-            question: soal.questionText,
-            mediaUrl: soal.mediaUrl ?? undefined,
-            options: soal.options.map((option) => option.text),
-            correct: correctIndex >= 0 ? correctIndex : 0,
+          id: soal.id,
+          question: soal.questionText,
+          mediaUrl: soal.mediaUrl ?? undefined,
+          options: soal.options.map((option) => option.text),
+          correct: correctIndex >= 0 ? correctIndex : 0,
         };
-        });
+      });
 
-        const item: LearningItem = {
+      const item: LearningItem = {
         id: content.kuis.id,
         kind: "kuis",
         title: content.kuis.title,
         description: content.kuis.description ?? "",
         duration: content.kuis.hasTimeLimit
-            ? formatDuration(content.kuis.timeLimitMinutes)
-            : "Tanpa Batas Waktu",
+          ? formatDuration(content.kuis.timeLimitMinutes)
+          : "Tanpa Batas Waktu",
         estimatedMinutes: content.kuis.timeLimitMinutes ?? 0,
         isCompleted: params.completedQuizIds.has(content.kuis.id),
         timeLimitMinutes: content.kuis.timeLimitMinutes ?? undefined,
+        latestScore: latestAttempt?.score ?? null,
+        latestCorrectCount: latestAttempt?.totalCorrect ?? null,
+        latestTotalQuestions: latestAttempt?.totalQuestions ?? null,
         questions,
-        };
+      };
 
-        return [item];
+      return [item];
     }
 
     return [];
-    });
+  });
 
   const materialCount = items.filter((item) => item.kind === "materi").length;
   const completedMaterialCount = items.filter(
@@ -401,14 +438,19 @@ function mapModuleToLearningModule(params: {
 export async function getStudentModuleCards(
   userId: number
 ): Promise<StudentModuleCardItem[]> {
-  const { enrollments, completedMaterialIds, completedQuizIds } =
-    await getStudentEnrollmentData(userId);
+  const {
+    enrollments,
+    completedMaterialIds,
+    completedQuizIds,
+    latestQuizAttemptByQuizId,
+  } = await getStudentEnrollmentData(userId);
 
   return enrollments.map((enrollment) => {
     const module = mapModuleToLearningModule({
       enrollment,
       completedMaterialIds,
       completedQuizIds,
+      latestQuizAttemptByQuizId,
     });
 
     const lessons = module.items.filter((item) => item.kind === "materi").length;
@@ -432,8 +474,12 @@ export async function getStudentDashboardData(params: {
   userId: number;
   studentFullName: string;
 }): Promise<StudentDashboardData> {
-  const { enrollments, completedMaterialIds, completedQuizIds } =
-    await getStudentEnrollmentData(params.userId);
+  const {
+    enrollments,
+    completedMaterialIds,
+    completedQuizIds,
+    latestQuizAttemptByQuizId,
+  } = await getStudentEnrollmentData(params.userId);
 
   const learningProgress: StudentDashboardLearningProgressItem[] = [];
   const pendingQuizzes: StudentDashboardPendingQuizItem[] = [];
@@ -446,6 +492,7 @@ export async function getStudentDashboardData(params: {
       enrollment,
       completedMaterialIds,
       completedQuizIds,
+      latestQuizAttemptByQuizId,
     });
 
     const completedMaterials = module.items.filter(
@@ -495,8 +542,12 @@ export async function getStudentModuleDetailData(params: {
   userId: number;
   moduleId: number;
 }): Promise<LearningModule | null> {
-  const { enrollments, completedMaterialIds, completedQuizIds } =
-    await getStudentEnrollmentData(params.userId);
+  const {
+    enrollments,
+    completedMaterialIds,
+    completedQuizIds,
+    latestQuizAttemptByQuizId,
+  } = await getStudentEnrollmentData(params.userId);
 
   const enrollment = enrollments.find(
     (item) => item.module.id === params.moduleId
@@ -508,6 +559,7 @@ export async function getStudentModuleDetailData(params: {
     enrollment,
     completedMaterialIds,
     completedQuizIds,
+    latestQuizAttemptByQuizId,
   });
 }
 

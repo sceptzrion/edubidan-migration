@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { Role } from "@prisma/client";
+import { NextResponse } from "next/server";
 
 import { getLatestQuizReview } from "@/services/quiz.service";
+import { getCurrentSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +44,36 @@ function getReviewStatusCode(
   return 404;
 }
 
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(_request: Request, context: RouteContext) {
   try {
+    const currentUser = await getCurrentSessionUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Authentication required",
+          data: null,
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
+    if (currentUser.role !== Role.MAHASISWA) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Only mahasiswa can review quiz",
+          data: null,
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
     const { id } = await context.params;
     const quizId = parseQuizId(id);
 
@@ -60,11 +90,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const userId = request.nextUrl.searchParams.get("userId");
-
     const result = await getLatestQuizReview({
       kuisId: quizId,
-      userId,
+      userId: currentUser.id,
     });
 
     if (!result.success) {

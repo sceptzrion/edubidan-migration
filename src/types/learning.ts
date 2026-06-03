@@ -32,6 +32,9 @@ export interface LearningItem {
   tools?: string[];
   questions?: QuizQuestion[];
   timeLimitMinutes?: number;
+  latestScore?: number | null;
+  latestCorrectCount?: number | null;
+  latestTotalQuestions?: number | null;
 }
 
 export interface LearningModule {
