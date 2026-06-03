@@ -780,7 +780,7 @@ async function main() {
         type: NotificationType.MATERI_BARU,
         title: "Materi baru tersedia",
         body: "Materi Pemeriksaan Kehamilan Dasar sudah dapat dipelajari.",
-        href: `/modules/${moduleKehamilan.id}`,
+        href: `/dashboard/modules/${moduleKehamilan.id}`,
       },
       {
         userId: mahasiswaNadia.id,
@@ -788,7 +788,7 @@ async function main() {
         type: NotificationType.HASIL_KUIS,
         title: "Hasil kuis tersedia",
         body: "Hasil Kuis Pemeriksaan Kehamilan Dasar sudah tersedia.",
-        href: `/modules/${moduleKehamilan.id}`,
+        href: `/dashboard/modules/${moduleKehamilan.id}`,
       },
       {
         userId: dosenUser.id,

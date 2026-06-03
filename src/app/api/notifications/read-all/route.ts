@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
+import { getCurrentSessionUser } from "@/lib/auth/session";
 import { markAllNotificationsAsRead } from "@/services/notification.service";
 
 export const dynamic = "force-dynamic";
@@ -29,12 +30,25 @@ function getReadAllStatusCode(
   return 404;
 }
 
-export async function PATCH(request: NextRequest) {
+export async function PATCH() {
   try {
-    const body = await request.json();
+    const currentUser = await getCurrentSessionUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Authentication required",
+          data: null,
+        },
+        {
+          status: 401,
+        }
+      );
+    }
 
     const result = await markAllNotificationsAsRead({
-      userId: body.userId,
+      userId: currentUser.id,
     });
 
     if (!result.success) {

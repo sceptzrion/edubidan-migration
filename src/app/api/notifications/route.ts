@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getCurrentSessionUser } from "@/lib/auth/session";
 import { getUserNotifications } from "@/services/notification.service";
 
 export const dynamic = "force-dynamic";
@@ -27,11 +28,25 @@ function getNotificationsStatusCode(
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.nextUrl.searchParams.get("userId");
+    const currentUser = await getCurrentSessionUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Authentication required",
+          data: null,
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
     const isRead = request.nextUrl.searchParams.get("isRead");
 
     const result = await getUserNotifications({
-      userId,
+      userId: currentUser.id,
       isRead,
     });
 

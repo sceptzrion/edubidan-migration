@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, ChevronDown, Menu } from "lucide-react";
+import { ChevronDown, Menu } from "lucide-react";
 
 import { AdminAccountMenu } from "@/components/dashboard/admin/layout/AdminAccountMenu";
-import { AdminNotificationMenu } from "@/components/dashboard/admin/layout/AdminNotificationMenu";
+import { DashboardNotificationMenu } from "@/components/dashboard/shared/DashboardNotificationMenu";
 import { EduBidanLogo } from "@/components/ui/EduBidanLogo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { getAdminNotifications } from "@/data/learning/admin/admin-notifications";
 import { getUserInitials } from "@/lib/auth/client-auth";
 import type { DashboardSessionUser } from "@/lib/auth/session-user";
 
@@ -25,12 +24,7 @@ export function AdminTopbar({
   const [showAccount, setShowAccount] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
 
-  const notifications = getAdminNotifications();
   const initials = getUserInitials(currentUser.name);
-
-  const hasUnreadNotification = notifications.some(
-    (notification) => !notification.read
-  );
 
   const toggleAccountMenu = () => {
     setShowAccount((current) => !current);
@@ -66,28 +60,14 @@ export function AdminTopbar({
       <div className="flex items-center gap-2 md:gap-4">
         <ThemeToggle />
 
-        <div className="relative">
-          <button
-            type="button"
-            onClick={toggleNotificationMenu}
-            className="p-2.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors relative"
-            aria-label="Buka notifikasi admin"
-            aria-expanded={showNotification}
-          >
-            <Bell size={20} />
-
-            {hasUnreadNotification && (
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-card" />
-            )}
-          </button>
-
-          {showNotification && (
-            <AdminNotificationMenu
-              notifications={notifications}
-              onClose={() => setShowNotification(false)}
-            />
-          )}
-        </div>
+        <DashboardNotificationMenu
+          title="Notifikasi Admin"
+          emptyTitle="Belum ada notifikasi"
+          emptyDescription="Aktivitas sistem akan muncul di sini."
+          isOpen={showNotification}
+          onToggle={toggleNotificationMenu}
+          onClose={() => setShowNotification(false)}
+        />
 
         <div className="relative">
           <button
