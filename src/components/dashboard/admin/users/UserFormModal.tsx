@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Loader2,
   LockKeyhole,
   Mail,
   Send,
@@ -21,8 +22,10 @@ import type { AdminUserFormData } from "@/lib/admin/users-admin-adapter";
 interface UserFormModalProps {
   mode: "add" | "edit";
   user?: AdminUser;
+  isResettingPassword?: boolean;
   onClose: () => void;
   onSave: (data: AdminUserFormData) => void;
+  onResetPassword?: (user: AdminUser) => void;
 }
 
 function Field({
@@ -85,8 +88,10 @@ const selectClassName =
 export function UserFormModal({
   mode,
   user,
+  isResettingPassword = false,
   onClose,
   onSave,
+  onResetPassword,
 }: UserFormModalProps) {
   const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState<AdminUserFormData>(() =>
@@ -159,7 +164,10 @@ export function UserFormModal({
   };
 
   const handleSendResetLink = () => {
+    if (!user || isResettingPassword) return;
+
     setResetStatus("ready");
+    onResetPassword?.(user);
 
     window.setTimeout(() => {
       setResetStatus("idle");
@@ -321,8 +329,8 @@ export function UserFormModal({
                   </p>
 
                   <p className="text-xs sm:text-sm text-muted-foreground font-medium leading-relaxed mt-1">
-                    Atur password awal untuk akun baru. Pengiriman email akan
-                    dapat diaktifkan setelah service email tersedia.
+                    Atur password awal untuk akun baru. Jika email service
+                    aktif, informasi akun akan dikirim melalui email.
                   </p>
                 </div>
               </div>
@@ -346,7 +354,10 @@ export function UserFormModal({
                   }`}
                 >
                   {useAutoPassword && (
-                    <CheckCircle2 size={14} className="text-primary-foreground" />
+                    <CheckCircle2
+                      size={14}
+                      className="text-primary-foreground"
+                    />
                   )}
                 </span>
 
@@ -360,7 +371,8 @@ export function UserFormModal({
                     <span className="font-mono font-extrabold text-foreground">
                       password123
                     </span>
-                    . Nantinya informasi akun bisa dikirim melalui email.
+                    . Informasi akun akan dikirim melalui email jika email
+                    service sudah dikonfigurasi.
                   </span>
                 </span>
               </button>
@@ -394,7 +406,11 @@ export function UserFormModal({
                             : "Tampilkan password"
                         }
                       >
-                        {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        {showPassword ? (
+                          <EyeOff size={17} />
+                        ) : (
+                          <Eye size={17} />
+                        )}
                       </button>
                     </div>
                   </Field>
@@ -437,15 +453,15 @@ export function UserFormModal({
                     </p>
 
                     <p className="text-xs sm:text-sm text-muted-foreground font-medium leading-relaxed mt-1">
-                      Nantinya sistem akan mengirim tautan atau OTP reset
-                      password ke email pengguna.
+                      Sistem akan membuat password sementara baru, menyimpannya
+                      ke akun pengguna, lalu mengirim informasi reset ke email
+                      pengguna jika email service sudah aktif.
                     </p>
 
                     {resetStatus === "ready" && (
                       <div className="mt-3 flex items-center gap-2 text-xs font-bold text-amber-600">
                         <Sparkles size={15} />
-                        Flow email reset password akan diaktifkan pada tahap
-                        integrasi email service.
+                        Permintaan reset password sedang diproses.
                       </div>
                     )}
                   </div>
@@ -454,10 +470,15 @@ export function UserFormModal({
                 <button
                   type="button"
                   onClick={handleSendResetLink}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20 text-xs sm:text-sm font-extrabold hover:bg-amber-500 hover:text-white transition-colors whitespace-nowrap"
+                  disabled={isResettingPassword || !user}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20 text-xs sm:text-sm font-extrabold hover:bg-amber-500 hover:text-white transition-colors whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-amber-500/10 disabled:hover:text-amber-600"
                 >
-                  <Mail size={16} />
-                  Siapkan Reset Email
+                  {isResettingPassword ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Mail size={16} />
+                  )}
+                  {isResettingPassword ? "Memproses..." : "Reset Password"}
                 </button>
               </div>
             </div>

@@ -59,12 +59,30 @@ function getFriendlyUserError(message: string) {
     "User cannot be deleted because related learning data already exists":
       "Pengguna tidak dapat dihapus karena sudah memiliki data pembelajaran terkait.",
     "User deleted permanently": "Pengguna berhasil dihapus permanen.",
+    "Admin account password cannot be reset here":
+      "Password akun admin tidak dapat direset dari halaman ini.",
+    "Failed to reset password": "Gagal mereset password pengguna.",
   };
 
   return (
     messages[message] ?? "Aksi gagal. Silakan periksa kembali data pengguna."
   );
 }
+
+type ResetPasswordApiResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    temporaryPassword: string | null;
+  } | null;
+  meta?: {
+    email?: {
+      sent: boolean;
+      skipped: boolean;
+      error: string | null;
+    };
+  };
+};
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -85,6 +103,7 @@ export default function AdminUsersPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [toast, setToast] = useState<AppToastState>(null);
   const toastTimeoutRef = useRef<number | null>(null);
@@ -307,6 +326,78 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleResetUserPassword = async (targetUser: AdminUser) => {
+  if (isResettingPassword) return;
+
+  setIsResettingPassword(true);
+  setErrorMessage("");
+
+  try {
+    const response = await fetch(`/api/users/${targetUser.id}/reset-password`, {
+      method: "POST",
+    });
+
+    const result = (await response.json()) as ResetPasswordApiResponse;
+
+    if (!response.ok || !result.success) {
+      const message = getFriendlyUserError(result.message);
+
+      setErrorMessage(message);
+      showToast({
+        type: "error",
+        title: "Reset password gagal",
+        message,
+      });
+      return;
+    }
+
+    const emailMeta = result.meta?.email;
+    const temporaryPassword = result.data?.temporaryPassword;
+
+    let message = `Password sementara untuk ${targetUser.name} berhasil dibuat.`;
+
+    if (emailMeta?.sent) {
+      message =
+        "Password sementara berhasil dikirim ke email pengguna.";
+    }
+
+    if (emailMeta?.skipped) {
+      message =
+        temporaryPassword
+          ? `Email belum dikirim karena RESEND_API_KEY belum dikonfigurasi. Password sementara: ${temporaryPassword}`
+          : "Email belum dikirim karena RESEND_API_KEY belum dikonfigurasi.";
+    }
+
+    if (emailMeta && !emailMeta.sent && !emailMeta.skipped && emailMeta.error) {
+      message = temporaryPassword
+        ? `Password berhasil direset, tetapi email gagal dikirim: ${emailMeta.error}. Password sementara: ${temporaryPassword}`
+        : `Password berhasil direset, tetapi email gagal dikirim: ${emailMeta.error}`;
+    }
+
+    showToast({
+      type:
+        emailMeta && !emailMeta.sent && !emailMeta.skipped
+          ? "warning"
+          : "success",
+      title: "Password berhasil direset",
+      message,
+    });
+  } catch (error) {
+    console.error("Reset user password error:", error);
+
+    const message = "Terjadi kesalahan koneksi saat mereset password pengguna.";
+
+    setErrorMessage(message);
+    showToast({
+      type: "error",
+      title: "Koneksi bermasalah",
+      message,
+    });
+  } finally {
+    setIsResettingPassword(false);
+  }
+};
+
   const handleSaveUser = async (data: AdminUserFormData) => {
     if (isMutating) return;
 
@@ -495,8 +586,10 @@ export default function AdminUsersPage() {
         <UserFormModal
           mode={modal.mode}
           user={modal.user}
+          isResettingPassword={isResettingPassword}
           onClose={closeModal}
           onSave={handleSaveUser}
+          onResetPassword={handleResetUserPassword}
         />
       )}
 

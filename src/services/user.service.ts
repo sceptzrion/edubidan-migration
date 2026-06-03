@@ -2,7 +2,10 @@ import { Prisma, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
-import { sendAccountCreatedEmail } from "@/services/email/email.service";
+import {
+  sendAccountCreatedEmail,
+  sendAdminResetPasswordEmail
+} from "@/services/email/email.service";
 
 const userSafeSelect = {
   id: true,
@@ -76,6 +79,13 @@ function isValidNpm(npm: string) {
 
 function isValidNidnNip(nidnNip: string) {
   return /^[A-Za-z0-9.-]{5,30}$/.test(nidnNip);
+}
+
+function generateTemporaryPassword() {
+  const randomPart = Math.random().toString(36).slice(2, 8);
+  const timestampPart = Date.now().toString(36).slice(-4);
+
+  return `EduBidan-${randomPart}${timestampPart}`;
 }
 
 export async function getUsers() {
@@ -771,4 +781,115 @@ export async function deleteUserByAdmin(
 
     throw error;
   }
+}
+
+export type ResetUserPasswordByAdminResult =
+  | {
+      success: true;
+      temporaryPassword: string;
+      email:
+        | {
+            sent: true;
+            skipped: false;
+            error: null;
+          }
+        | {
+            sent: false;
+            skipped: true;
+            error: null;
+          }
+        | {
+            sent: false;
+            skipped: false;
+            error: string;
+          };
+      error: null;
+    }
+  | {
+      success: false;
+      temporaryPassword: null;
+      email: null;
+      error: "USER_NOT_FOUND" | "ADMIN_CANNOT_BE_RESET";
+    };
+
+export async function resetUserPasswordByAdmin(
+  id: number
+): Promise<ResetUserPasswordByAdminResult> {
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  });
+
+  if (!existingUser) {
+    return {
+      success: false,
+      temporaryPassword: null,
+      email: null,
+      error: "USER_NOT_FOUND",
+    };
+  }
+
+  if (existingUser.role === Role.ADMIN) {
+    return {
+      success: false,
+      temporaryPassword: null,
+      email: null,
+      error: "ADMIN_CANNOT_BE_RESET",
+    };
+  }
+
+  const temporaryPassword = generateTemporaryPassword();
+  const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+  await prisma.user.update({
+    where: {
+      id,
+    },
+    data: {
+      password: hashedPassword,
+      activityLogs: {
+        create: {
+          actionType: "RESET_PASSWORD",
+          description: `Admin mereset password akun ${existingUser.name}.`,
+        },
+      },
+    },
+  });
+
+  const emailResult = await sendAdminResetPasswordEmail({
+    to: existingUser.email,
+    name: existingUser.name,
+    email: existingUser.email,
+    temporaryPassword,
+  });
+
+  return {
+    success: true,
+    temporaryPassword,
+    email: emailResult.success
+      ? emailResult.skipped
+        ? {
+            sent: false,
+            skipped: true,
+            error: null,
+          }
+        : {
+            sent: true,
+            skipped: false,
+            error: null,
+          }
+      : {
+          sent: false,
+          skipped: false,
+          error: emailResult.error,
+        },
+    error: null,
+  };
 }
