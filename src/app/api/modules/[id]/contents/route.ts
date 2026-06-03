@@ -1,4 +1,4 @@
-import { ContentType, Role } from "@prisma/client";
+import { ContentType, NotificationType, Role } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { createQuiz } from "@/services/quiz-management.service";
@@ -110,6 +110,7 @@ async function getOwnedModule(moduleId: number, dosenProfileId: number) {
     },
     select: {
       id: true,
+      title: true,
     },
   });
 }
@@ -124,6 +125,42 @@ function normalizeContentKind(value: unknown) {
   }
 
   return null;
+}
+
+async function notifyParticipantsNewContent(params: {
+  moduleId: number;
+  moduleTitle: string;
+  contentTitle: string;
+  contentKind: ContentType;
+}) {
+  const activeEnrollments = await prisma.enrollment.findMany({
+    where: {
+      moduleId: params.moduleId,
+      isKicked: false,
+    },
+    select: {
+      userId: true,
+    },
+  });
+
+  if (activeEnrollments.length === 0) {
+    return;
+  }
+
+  const isMaterial = params.contentKind === ContentType.MATERI;
+
+  await prisma.notification.createMany({
+    data: activeEnrollments.map((enrollment) => ({
+      userId: enrollment.userId,
+      moduleId: params.moduleId,
+      type: isMaterial ? NotificationType.MATERI_BARU : NotificationType.KUIS_BARU,
+      title: isMaterial ? "Materi baru tersedia" : "Kuis baru tersedia",
+      body: isMaterial
+        ? `Materi "${params.contentTitle}" telah ditambahkan pada modul ${params.moduleTitle}.`
+        : `Kuis "${params.contentTitle}" telah ditambahkan pada modul ${params.moduleTitle}.`,
+      href: `/dashboard/modules/${params.moduleId}`,
+    })),
+  });
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -269,6 +306,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         );
       }
 
+      await notifyParticipantsNewContent({
+        moduleId,
+        moduleTitle: ownedModule.title,
+        contentTitle: result.material?.title ?? body.title ?? "Materi baru",
+        contentKind: ContentType.MATERI,
+      });
+
       return NextResponse.json(
         {
           success: true,
@@ -302,6 +346,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         }
       );
     }
+
+    await notifyParticipantsNewContent({
+      moduleId,
+      moduleTitle: ownedModule.title,
+      contentTitle: result.quiz?.title ?? body.title ?? "Kuis baru",
+      contentKind: ContentType.KUIS,
+    });
 
     return NextResponse.json(
       {
