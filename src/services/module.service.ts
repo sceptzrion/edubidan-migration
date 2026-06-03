@@ -131,6 +131,23 @@ const moduleDetailSelect = {
           soals: {
             select: {
               id: true,
+              questionText: true,
+              mediaUrl: true,
+              order: true,
+              options: {
+                select: {
+                  id: true,
+                  text: true,
+                  isCorrect: true,
+                  order: true,
+                },
+                orderBy: {
+                  order: "asc",
+                },
+              },
+            },
+            orderBy: {
+              order: "asc",
             },
           },
         },

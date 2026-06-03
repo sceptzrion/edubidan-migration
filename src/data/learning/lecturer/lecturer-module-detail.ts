@@ -4,6 +4,7 @@ import type {
   LecturerKuisItem,
   LecturerMateriItem,
   LecturerPlaylistItem,
+  LecturerQuizQuestion,
 } from "@/components/dashboard/lecturer/modules/detail/PlaylistTab";
 import { getModuleById } from "@/services/module.service";
 
@@ -24,6 +25,12 @@ export interface LecturerModuleDetailData {
   info: LecturerModuleDetailInfo;
   playlistItems: LecturerPlaylistItem[];
 }
+
+type ModuleDetailData = NonNullable<Awaited<ReturnType<typeof getModuleById>>>;
+type ModuleDetailContent = ModuleDetailData["contents"][number];
+type ModuleDetailMateri = ModuleDetailContent["materi"];
+type ModuleDetailKuis = ModuleDetailContent["kuis"];
+type ModuleDetailSoal = NonNullable<ModuleDetailKuis>["soals"][number];
 
 const fallbackBanner =
   "https://images.unsplash.com/photo-1559757175-5700dde675bc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080";
@@ -65,9 +72,7 @@ function mapVideoSource(source: VideoSource): LecturerMateriItem["videoSource"] 
 
 function mapMateriItem(
   contentId: number,
-  materi: NonNullable<
-    Awaited<ReturnType<typeof getModuleById>>
-  >["contents"][number]["materi"]
+  materi: ModuleDetailMateri
 ): LecturerMateriItem | null {
   if (!materi) return null;
 
@@ -87,13 +92,29 @@ function mapMateriItem(
   };
 }
 
+function mapQuizQuestion(soal: ModuleDetailSoal): LecturerQuizQuestion {
+  const correctOption = soal.options.find((option) => option.isCorrect);
+  const fallbackOption = soal.options[0];
+
+  return {
+    id: soal.id,
+    questionText: soal.questionText,
+    mediaUrl: soal.mediaUrl,
+    options: soal.options.map((option) => ({
+      id: option.id,
+      text: option.text,
+    })),
+    correctOptionId: correctOption?.id ?? fallbackOption?.id ?? 0,
+  };
+}
+
 function mapKuisItem(
   contentId: number,
-  kuis: NonNullable<
-    Awaited<ReturnType<typeof getModuleById>>
-  >["contents"][number]["kuis"]
+  kuis: ModuleDetailKuis
 ): LecturerKuisItem | null {
   if (!kuis) return null;
+
+  const questions = kuis.soals.map(mapQuizQuestion);
 
   return {
     kind: "kuis",
@@ -103,14 +124,12 @@ function mapKuisItem(
     description: kuis.description ?? "",
     hasTimeLimit: kuis.hasTimeLimit,
     timeLimitMinutes: kuis.timeLimitMinutes ?? 0,
-    questions: [],
-    questionCount: kuis.soals.length,
+    questions,
+    questionCount: questions.length,
   };
 }
 
-function mapPlaylistItems(
-  moduleData: NonNullable<Awaited<ReturnType<typeof getModuleById>>>
-): LecturerPlaylistItem[] {
+function mapPlaylistItems(moduleData: ModuleDetailData): LecturerPlaylistItem[] {
   return moduleData.contents
     .map((content) => {
       if (content.kind === ContentType.MATERI) {

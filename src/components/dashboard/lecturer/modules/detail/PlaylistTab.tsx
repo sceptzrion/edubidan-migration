@@ -81,10 +81,37 @@ type MaterialApiData = {
   }>;
 };
 
+type QuizApiData = {
+  id: number;
+  title: string;
+  description: string | null;
+  hasTimeLimit: boolean;
+  timeLimitMinutes: number | null;
+  content: {
+    id: number;
+  };
+  soals: Array<{
+    id: number;
+    questionText: string;
+    mediaUrl: string | null;
+    options: Array<{
+      id: number;
+      text: string;
+      isCorrect: boolean;
+    }>;
+  }>;
+};
+
 type MaterialApiResponse = {
   success: boolean;
   message: string;
   data: MaterialApiData | null;
+};
+
+type QuizApiResponse = {
+  success: boolean;
+  message: string;
+  data: QuizApiData | null;
 };
 
 type DeleteApiResponse = {
@@ -93,6 +120,14 @@ type DeleteApiResponse = {
   data: {
     id: number;
     contentId: number;
+  } | null;
+};
+
+type ReorderApiResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    orderedContentIds: number[];
   } | null;
 };
 
@@ -156,6 +191,34 @@ function mapMaterialApiToItem(material: MaterialApiData): LecturerMateriItem {
   };
 }
 
+function mapQuizApiToItem(quiz: QuizApiData): LecturerKuisItem {
+  return {
+    kind: "kuis",
+    id: quiz.id,
+    contentId: quiz.content.id,
+    title: quiz.title,
+    description: quiz.description ?? "",
+    hasTimeLimit: quiz.hasTimeLimit,
+    timeLimitMinutes: quiz.timeLimitMinutes ?? 0,
+    questionCount: quiz.soals.length,
+    questions: quiz.soals.map((soal) => {
+      const correctOption = soal.options.find((option) => option.isCorrect);
+      const fallbackOption = soal.options[0];
+
+      return {
+        id: soal.id,
+        questionText: soal.questionText,
+        mediaUrl: soal.mediaUrl,
+        options: soal.options.map((option) => ({
+          id: option.id,
+          text: option.text,
+        })),
+        correctOptionId: correctOption?.id ?? fallbackOption?.id ?? 0,
+      };
+    }),
+  };
+}
+
 function getFriendlyMaterialError(message: string) {
   if (message === "Title is required") {
     return "Judul materi tidak boleh kosong.";
@@ -188,6 +251,61 @@ function getFriendlyMaterialError(message: string) {
   return "Terjadi kesalahan. Silakan coba lagi.";
 }
 
+function getFriendlyQuizError(message: string) {
+  if (message === "Title is required") {
+    return "Judul kuis tidak boleh kosong.";
+  }
+
+  if (message === "Time limit must be a positive integer") {
+    return "Batas waktu kuis harus berupa angka menit yang valid.";
+  }
+
+  if (message === "Quiz questions are invalid") {
+    return "Soal kuis belum valid. Minimal satu soal dengan dua opsi jawaban.";
+  }
+
+  if (message === "Authentication required") {
+    return "Sesi login sudah berakhir. Silakan login kembali.";
+  }
+
+  if (message === "Only lecturers can manage quizzes") {
+    return "Hanya akun dosen yang dapat mengelola kuis.";
+  }
+
+  if (message === "Quiz not found or not owned by lecturer") {
+    return "Kuis tidak ditemukan atau bukan milik akun dosen ini.";
+  }
+
+  if (message === "Module not found or not owned by lecturer") {
+    return "Modul tidak ditemukan atau bukan milik akun dosen ini.";
+  }
+
+  return "Terjadi kesalahan. Silakan coba lagi.";
+}
+
+function getFriendlyReorderError(message: string) {
+  if (
+    message === "Ordered content ids are required" ||
+    message === "Ordered content ids are invalid"
+  ) {
+    return "Urutan konten tidak valid.";
+  }
+
+  if (message === "Some contents were not found in this module") {
+    return "Sebagian konten tidak ditemukan pada modul ini.";
+  }
+
+  if (message === "Module not found or not owned by lecturer") {
+    return "Modul tidak ditemukan atau bukan milik akun dosen ini.";
+  }
+
+  return "Gagal menyimpan urutan konten.";
+}
+
+function getContentId(item: LecturerPlaylistItem) {
+  return item.contentId;
+}
+
 export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
   const router = useRouter();
 
@@ -206,6 +324,8 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
     useState<LecturerPlaylistItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSavingMateri, setIsSavingMateri] = useState(false);
+  const [isSavingKuis, setIsSavingKuis] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
 
   const sortedItems = useMemo(() => items, [items]);
 
@@ -223,8 +343,67 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
     }, nextToast.durationMs ?? 3500);
   }, []);
 
-  const move = (from: number, to: number) => {
-    if (from === to || to < 0 || to >= items.length) return;
+  const persistOrder = async (nextItems: LecturerPlaylistItem[]) => {
+    const orderedContentIds = nextItems
+      .map(getContentId)
+      .filter((contentId): contentId is number => typeof contentId === "number");
+
+    if (orderedContentIds.length !== nextItems.length) {
+      showToast({
+        type: "warning",
+        title: "Urutan belum bisa disimpan",
+        message:
+          "Ada konten sementara yang belum tersimpan permanen. Simpan konten terlebih dahulu.",
+      });
+      return;
+    }
+
+    setIsReordering(true);
+    closeToast();
+
+    try {
+      const response = await fetch(`/api/modules/${moduleId}/contents`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          orderedContentIds,
+        }),
+      });
+
+      const result = (await response.json()) as ReorderApiResponse;
+
+      if (!response.ok || !result.success) {
+        showToast({
+          type: "error",
+          title: "Gagal menyimpan urutan",
+          message: getFriendlyReorderError(result.message),
+        });
+        return;
+      }
+
+      showToast({
+        type: "success",
+        title: "Urutan konten tersimpan",
+        message: "Susunan pembelajaran sudah diperbarui.",
+      });
+    } catch (error) {
+      console.error("Reorder contents error:", error);
+
+      showToast({
+        type: "error",
+        title: "Gagal menyimpan urutan",
+        message: "Terjadi kesalahan koneksi. Silakan coba lagi.",
+      });
+    } finally {
+      setIsReordering(false);
+    }
+  };
+
+  const move = async (from: number, to: number) => {
+    if (from === to || to < 0 || to >= items.length || isReordering) return;
 
     const next = [...items];
     const [movedItem] = next.splice(from, 1);
@@ -233,6 +412,8 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
 
     next.splice(to, 0, movedItem);
     setItems(next);
+
+    await persistOrder(next);
   };
 
   const handleSaveMateri = async (materi: LecturerMateriItem) => {
@@ -311,37 +492,78 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
     }
   };
 
-  const handleSaveKuis = (kuis: LecturerKuisItem) => {
-    setItems((currentItems) => {
-      if (editingKuis) {
-        return currentItems.map((item) =>
-          item.kind === "kuis" && item.id === editingKuis.id
-            ? {
-                ...kuis,
-                id: editingKuis.id,
-                contentId: editingKuis.contentId,
-              }
-            : item
-        );
+  const handleSaveKuis = async (kuis: LecturerKuisItem) => {
+    if (isSavingKuis) return;
+
+    setIsSavingKuis(true);
+    closeToast();
+
+    try {
+      const response = await fetch(
+        editingKuis
+          ? `/api/quizzes/${editingKuis.id}`
+          : `/api/modules/${moduleId}/contents`,
+        {
+          method: editingKuis ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            kind: "kuis",
+            title: kuis.title,
+            description: kuis.description,
+            hasTimeLimit: kuis.hasTimeLimit,
+            timeLimitMinutes: kuis.hasTimeLimit ? kuis.timeLimitMinutes : null,
+            questions: kuis.questions,
+          }),
+        }
+      );
+
+      const result = (await response.json()) as QuizApiResponse;
+
+      if (!response.ok || !result.success || !result.data) {
+        showToast({
+          type: "error",
+          title: editingKuis ? "Gagal memperbarui kuis" : "Gagal menambah kuis",
+          message: getFriendlyQuizError(result.message),
+        });
+        return;
       }
 
-      return [
-        {
-          ...kuis,
-          id: Date.now(),
-        },
-        ...currentItems,
-      ];
-    });
+      const savedKuis = mapQuizApiToItem(result.data);
 
-    setKuisOpen(false);
-    setEditingKuis(null);
+      setItems((currentItems) => {
+        if (editingKuis) {
+          return currentItems.map((item) =>
+            item.kind === "kuis" && item.id === editingKuis.id
+              ? savedKuis
+              : item
+          );
+        }
 
-    showToast({
-      type: "info",
-      title: "Kuis belum tersimpan permanen",
-      message: "Backend kuis sudah disiapkan. Integrasi KuisModal ke API dilakukan di batch berikutnya.",
-    });
+        return [savedKuis, ...currentItems];
+      });
+
+      setKuisOpen(false);
+      setEditingKuis(null);
+
+      showToast({
+        type: "success",
+        title: editingKuis ? "Kuis berhasil diperbarui" : "Kuis berhasil ditambahkan",
+        message: `Kuis "${savedKuis.title}" sudah tersimpan.`,
+      });
+    } catch (error) {
+      console.error("Save quiz error:", error);
+
+      showToast({
+        type: "error",
+        title: editingKuis ? "Gagal memperbarui kuis" : "Gagal menambah kuis",
+        message: "Terjadi kesalahan koneksi. Silakan coba lagi.",
+      });
+    } finally {
+      setIsSavingKuis(false);
+    }
   };
 
   const closeMateriModal = () => {
@@ -352,6 +574,8 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
   };
 
   const closeKuisModal = () => {
+    if (isSavingKuis) return;
+
     setKuisOpen(false);
     setEditingKuis(null);
   };
@@ -370,30 +594,16 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
   const handleConfirmDelete = async () => {
     if (!contentToDelete || isDeleting) return;
 
-    if (contentToDelete.kind === "kuis") {
-      setItems((currentItems) =>
-        currentItems.filter(
-          (item) =>
-            !(item.kind === contentToDelete.kind && item.id === contentToDelete.id)
-        )
-      );
-
-      setContentToDelete(null);
-
-      showToast({
-        type: "info",
-        title: "Kuis dihapus dari tampilan sementara",
-        message: "Hapus kuis permanen akan disambungkan pada batch integrasi KuisModal.",
-      });
-
-      return;
-    }
-
     setIsDeleting(true);
     closeToast();
 
     try {
-      const response = await fetch(`/api/materials/${contentToDelete.id}`, {
+      const endpoint =
+        contentToDelete.kind === "materi"
+          ? `/api/materials/${contentToDelete.id}`
+          : `/api/quizzes/${contentToDelete.id}`;
+
+      const response = await fetch(endpoint, {
         method: "DELETE",
         credentials: "same-origin",
       });
@@ -403,8 +613,14 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
       if (!response.ok || !result.success) {
         showToast({
           type: "error",
-          title: "Gagal menghapus materi",
-          message: getFriendlyMaterialError(result.message),
+          title:
+            contentToDelete.kind === "materi"
+              ? "Gagal menghapus materi"
+              : "Gagal menghapus kuis",
+          message:
+            contentToDelete.kind === "materi"
+              ? getFriendlyMaterialError(result.message)
+              : getFriendlyQuizError(result.message),
         });
         return;
       }
@@ -412,23 +628,26 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
       setItems((currentItems) =>
         currentItems.filter(
           (item) =>
-            !(item.kind === "materi" && item.id === contentToDelete.id)
+            !(item.kind === contentToDelete.kind && item.id === contentToDelete.id)
         )
       );
 
       showToast({
         type: "success",
-        title: "Materi berhasil dihapus",
-        message: `Materi "${contentToDelete.title}" sudah dihapus.`,
+        title:
+          contentToDelete.kind === "materi"
+            ? "Materi berhasil dihapus"
+            : "Kuis berhasil dihapus",
+        message: `Konten "${contentToDelete.title}" sudah dihapus.`,
       });
 
       setContentToDelete(null);
     } catch (error) {
-      console.error("Delete material error:", error);
+      console.error("Delete content error:", error);
 
       showToast({
         type: "error",
-        title: "Gagal menghapus materi",
+        title: "Gagal menghapus konten",
         message: "Terjadi kesalahan koneksi. Silakan coba lagi.",
       });
     } finally {
@@ -537,11 +756,11 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
           return (
             <div
               key={`${item.kind}-${item.id}`}
-              draggable
+              draggable={!isReordering}
               onDragStart={() => setDragIndex(index)}
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => {
-                if (dragIndex !== null) move(dragIndex, index);
+                if (dragIndex !== null) void move(dragIndex, index);
                 setDragIndex(null);
               }}
               className={`bg-card rounded-xl sm:rounded-2xl border p-4 sm:p-5 flex items-center gap-3 sm:gap-4 transition-all hover:shadow-md hover:border-primary/30 ${
@@ -581,6 +800,11 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
                   <span className="text-xs font-bold text-muted-foreground">
                     Urutan #{index + 1}
                   </span>
+                  {isReordering && (
+                    <span className="text-[10px] font-bold text-primary">
+                      Menyimpan urutan...
+                    </span>
+                  )}
                 </div>
 
                 <p className="text-sm sm:text-base font-extrabold text-foreground truncate leading-snug">

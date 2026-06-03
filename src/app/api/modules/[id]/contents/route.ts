@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createQuiz } from "@/services/quiz-management.service";
 import { createMaterial, getModuleContents } from "@/services/material.service";
+import { reorderModuleContents } from "@/services/module-content.service";
 import { getCurrentSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
@@ -45,6 +46,19 @@ function getCreateQuizErrorMessage(
     TITLE_REQUIRED: "Title is required",
     TIME_LIMIT_INVALID: "Time limit must be a positive integer",
     QUESTIONS_INVALID: "Quiz questions are invalid",
+  };
+
+  return messages[error];
+}
+
+function getReorderContentErrorMessage(
+  error: NonNullable<Awaited<ReturnType<typeof reorderModuleContents>>["error"]>
+) {
+  const messages = {
+    MODULE_NOT_FOUND: "Module not found",
+    CONTENT_IDS_REQUIRED: "Ordered content ids are required",
+    CONTENT_IDS_INVALID: "Ordered content ids are invalid",
+    CONTENT_NOT_FOUND: "Some contents were not found in this module",
   };
 
   return messages[error];
@@ -306,6 +320,97 @@ export async function POST(request: NextRequest, context: RouteContext) {
       {
         success: false,
         message: "Failed to create module content",
+        data: null,
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  try {
+    const auth = await getAuthenticatedDosenProfileId();
+
+    if (!auth.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: auth.message,
+          data: null,
+        },
+        {
+          status: auth.status,
+        }
+      );
+    }
+
+    const { id } = await context.params;
+    const moduleId = parseModuleId(id);
+
+    if (!moduleId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid module id",
+          data: null,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const ownedModule = await getOwnedModule(moduleId, auth.dosenProfileId);
+
+    if (!ownedModule) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Module not found or not owned by lecturer",
+          data: null,
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    const body = await request.json();
+
+    const result = await reorderModuleContents({
+      moduleId,
+      orderedContentIds: body.orderedContentIds,
+    });
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: getReorderContentErrorMessage(result.error),
+          data: null,
+        },
+        {
+          status: result.error === "MODULE_NOT_FOUND" ? 404 : 400,
+        }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Module contents reordered successfully",
+      data: {
+        orderedContentIds: body.orderedContentIds,
+      },
+    });
+  } catch (error) {
+    console.error("PATCH /api/modules/[id]/contents error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to reorder module contents",
         data: null,
       },
       {
