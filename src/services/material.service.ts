@@ -667,3 +667,51 @@ export async function updateMaterialProgress(params: {
     error: null,
   };
 }
+
+export type DeleteMaterialResult =
+  | {
+      success: true;
+      deletedMaterialId: number;
+      deletedContentId: number;
+      error: null;
+    }
+  | {
+      success: false;
+      deletedMaterialId: null;
+      deletedContentId: null;
+      error: "MATERIAL_NOT_FOUND";
+    };
+
+export async function deleteMaterial(id: number): Promise<DeleteMaterialResult> {
+  const material = await prisma.materi.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      id: true,
+      contentId: true,
+    },
+  });
+
+  if (!material) {
+    return {
+      success: false,
+      deletedMaterialId: null,
+      deletedContentId: null,
+      error: "MATERIAL_NOT_FOUND",
+    };
+  }
+
+  await prisma.moduleContent.delete({
+    where: {
+      id: material.contentId,
+    },
+  });
+
+  return {
+    success: true,
+    deletedMaterialId: material.id,
+    deletedContentId: material.contentId,
+    error: null,
+  };
+}

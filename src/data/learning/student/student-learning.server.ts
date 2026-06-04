@@ -2,7 +2,11 @@ import { ContentType, VideoSource } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { getDisplayNameParts } from "@/lib/text/name";
-import { formatMinutes, formatRoundedModuleMinutes } from "@/lib/video/youtube";
+import {
+  extractYouTubeVideoId,
+  formatMinutes,
+  formatRoundedModuleMinutes,
+} from "@/lib/video/youtube";
 import type { LearningItem, LearningModule } from "@/types/learning";
 
 const fallbackModuleImage =
@@ -90,40 +94,11 @@ function calculateModuleProgress(params: {
 }
 
 function getEmbedThumbnail(videoUrl: string | null) {
-  if (!videoUrl) return fallbackModuleImage;
+  const videoId = extractYouTubeVideoId(videoUrl);
 
-  try {
-    const parsedUrl = new URL(videoUrl);
-    const host = parsedUrl.hostname.replace("www.", "");
-
-    if (host === "youtube.com" || host === "m.youtube.com") {
-      const videoId = parsedUrl.searchParams.get("v");
-
-      return videoId
-        ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-        : fallbackModuleImage;
-    }
-
-    if (host === "youtu.be") {
-      const videoId = parsedUrl.pathname.replace("/", "");
-
-      return videoId
-        ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-        : fallbackModuleImage;
-    }
-
-    if (host === "youtube.com" && parsedUrl.pathname.startsWith("/embed/")) {
-      const videoId = parsedUrl.pathname.replace("/embed/", "").split("/")[0];
-
-      return videoId
-        ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-        : fallbackModuleImage;
-    }
-
-    return fallbackModuleImage;
-  } catch {
-    return fallbackModuleImage;
-  }
+  return videoId
+    ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+    : fallbackModuleImage;
 }
 
 async function getStudentEnrollmentData(userId: number) {

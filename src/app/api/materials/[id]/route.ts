@@ -32,9 +32,9 @@ function getUpdateProgressErrorMessage(
 ) {
   const messages = {
     USER_ID_REQUIRED: "User id is required",
-    COMPLETED_STATUS_REQUIRED: "isCompleted boolean is required",
+    MATERIAL_ID_REQUIRED: "Material id is required",
+    COMPLETION_STATUS_INVALID: "isCompleted boolean is required",
     USER_NOT_FOUND: "User not found",
-    USER_INACTIVE: "User account is inactive",
     MATERIAL_NOT_FOUND: "Material not found",
     USER_NOT_ENROLLED: "User has not joined this module",
     USER_KICKED: "User has been kicked from this module",
@@ -46,7 +46,11 @@ function getUpdateProgressErrorMessage(
 function getUpdateProgressStatusCode(
   error: NonNullable<Awaited<ReturnType<typeof updateMaterialProgress>>["error"]>
 ) {
-  if (error === "USER_ID_REQUIRED" || error === "COMPLETED_STATUS_REQUIRED") {
+  if (
+    error === "USER_ID_REQUIRED" ||
+    error === "MATERIAL_ID_REQUIRED" ||
+    error === "COMPLETION_STATUS_INVALID"
+  ) {
     return 400;
   }
 
@@ -54,11 +58,7 @@ function getUpdateProgressStatusCode(
     return 404;
   }
 
-  if (
-    error === "USER_INACTIVE" ||
-    error === "USER_NOT_ENROLLED" ||
-    error === "USER_KICKED"
-  ) {
+  if (error === "USER_NOT_ENROLLED" || error === "USER_KICKED") {
     return 403;
   }
 
@@ -72,7 +72,6 @@ function getUpdateMaterialErrorMessage(
     MATERIAL_NOT_FOUND: "Material not found",
     TITLE_REQUIRED: "Title is required",
     VIDEO_SOURCE_INVALID: "Video source is invalid",
-    ESTIMATED_MINUTES_INVALID: "Estimated minutes must be a positive integer",
   };
 
   return messages[error];
@@ -229,7 +228,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
 
       const result = await updateMaterialProgress({
-        materiId: materialId,
+        materialId,
         userId: currentUser.id,
         isCompleted: body.isCompleted,
       });

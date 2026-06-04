@@ -33,7 +33,6 @@ function getCreateMaterialErrorMessage(
     MODULE_NOT_FOUND: "Module not found",
     TITLE_REQUIRED: "Title is required",
     VIDEO_SOURCE_INVALID: "Video source is invalid",
-    ESTIMATED_MINUTES_INVALID: "Estimated minutes must be a positive integer",
   };
 
   return messages[error];

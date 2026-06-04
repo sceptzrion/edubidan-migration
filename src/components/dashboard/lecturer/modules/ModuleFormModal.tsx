@@ -94,15 +94,6 @@ export function ModuleFormModal({
   }, [isOpen]);
 
   useEffect(() => {
-    setForm(initialForm);
-    setSelectedBannerFile(null);
-    setPreviewBannerUrl(null);
-    setShouldRemoveBanner(false);
-    setError("");
-    setBannerError("");
-  }, [initialForm]);
-
-  useEffect(() => {
     return () => {
       if (previewBannerUrl) {
         URL.revokeObjectURL(previewBannerUrl);

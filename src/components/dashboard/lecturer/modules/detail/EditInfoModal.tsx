@@ -43,6 +43,7 @@ export function EditInfoModal({
 
     onSave({
       ...form,
+      estimatedTime: info.estimatedTime,
       objectives,
     });
   };
@@ -119,24 +120,17 @@ export function EditInfoModal({
           </div>
 
           <div>
-            <label
-              htmlFor="moduleEstimatedTime"
-              className="text-xs sm:text-sm mb-2 block font-bold text-foreground"
-            >
+            <p className="text-xs sm:text-sm mb-2 block font-bold text-foreground">
               Estimasi Durasi
-            </label>
-            <input
-              id="moduleEstimatedTime"
-              value={form.estimatedTime}
-              onChange={(event) =>
-                setForm({ ...form, estimatedTime: event.target.value })
-              }
-              placeholder="Contoh: 6 Jam atau 120 Menit"
-              disabled={isSaving}
-              className="w-full px-4 py-3 rounded-xl bg-card border border-border outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm font-bold text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-            />
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 font-medium">
-              Bisa ditulis seperti 90 Menit, 2 Jam, atau 2 Jam 30 Menit.
+            </p>
+
+            <div className="w-full px-4 py-3 rounded-xl bg-muted/40 border border-border text-sm font-extrabold text-muted-foreground">
+              {form.estimatedTime || "- menit"}
+            </div>
+
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 font-medium leading-relaxed">
+              Durasi modul dihitung otomatis dari total durasi materi dan kuis, lalu
+              dibulatkan ke atas ke kelipatan 5 menit.
             </p>
           </div>
 
