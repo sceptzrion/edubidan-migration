@@ -45,6 +45,7 @@ export type LecturerQuizQuestion = {
   id: number;
   questionText: string;
   mediaUrl: string | null;
+  mediaPublicId?: string | null;
   options: LecturerQuizOption[];
   correctOptionId: number;
 };
@@ -94,6 +95,7 @@ type QuizApiData = {
     id: number;
     questionText: string;
     mediaUrl: string | null;
+    mediaPublicId: string | null;
     options: Array<{
       id: number;
       text: string;
@@ -209,6 +211,7 @@ function mapQuizApiToItem(quiz: QuizApiData): LecturerKuisItem {
         id: soal.id,
         questionText: soal.questionText,
         mediaUrl: soal.mediaUrl,
+        mediaPublicId: soal.mediaPublicId,
         options: soal.options.map((option) => ({
           id: option.id,
           text: option.text,

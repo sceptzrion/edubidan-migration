@@ -319,6 +319,7 @@ export function StudentQuizClient({ data }: StudentQuizClientProps) {
               currentQ={quizSession.currentQ}
               totalQuestions={questions.length}
               question={quizSession.currentQuestion.question}
+              mediaUrl={quizSession.currentQuestion.mediaUrl ?? null}
               options={quizSession.currentQuestion.options}
               selectedAnswer={reviewAnswers[quizSession.currentQ]}
               isFlagged={quizSession.flagged[quizSession.currentQ]}

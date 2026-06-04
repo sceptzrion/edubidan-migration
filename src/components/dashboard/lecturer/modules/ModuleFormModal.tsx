@@ -351,7 +351,7 @@ export function ModuleFormModal({
                 setError("");
               }}
               placeholder="Contoh: ANC Terpadu Trimester 1"
-              className="w-full px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-card border border-border text-sm text-foreground font-bold outline-none focus:border-primary focus:ring-1 focus-primary transition-all shadow-sm"
+              className="w-full px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-card border border-border text-sm text-foreground font-bold outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-sm"
             />
 
             {error && (

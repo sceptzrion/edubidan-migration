@@ -13,6 +13,7 @@ export interface LecturerQuizAnalysisOption {
 export interface LecturerQuizAnalysisQuestion {
   id: number;
   questionText: string;
+  mediaUrl: string | null;
   order: number;
   totalAnswers: number;
   correctCount: number;
@@ -114,6 +115,7 @@ export async function getLecturerQuizAnalysisData(params: {
                 select: {
                   id: true,
                   questionText: true,
+                  mediaUrl: true,
                   order: true,
                   options: {
                     orderBy: {
@@ -194,6 +196,7 @@ export async function getLecturerQuizAnalysisData(params: {
         return {
           id: question.id,
           questionText: question.questionText,
+          mediaUrl: question.mediaUrl,
           order: question.order,
           totalAnswers,
           correctCount,

@@ -268,11 +268,12 @@ model Kuis {
 }
 
 model Soal {
-  id            Int    @id @default(autoincrement())
+  id            Int     @id @default(autoincrement())
   kuisId        Int
-  questionText  String @db.Text
+  questionText  String  @db.Text
   mediaUrl      String? @db.VarChar(500) // gambar/media pendukung soal (opsional)
-  order         Int    @default(0)
+  mediaPublicId String? @db.VarChar(500)
+  order         Int     @default(0)
 
   kuis          Kuis           @relation(fields: [kuisId], references: [id], onDelete: Cascade)
   options       SoalOption[]

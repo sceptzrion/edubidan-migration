@@ -27,9 +27,22 @@ export function LecturerQuestionAnalysisCard({
         </div>
       </div>
 
-      <p className="text-lg sm:text-xl font-extrabold text-foreground leading-relaxed mb-8">
-        {question.questionText}
-      </p>
+      <div className="mb-8 space-y-4">
+        <p className="text-lg sm:text-xl font-extrabold text-foreground leading-relaxed">
+          {question.questionText}
+        </p>
+
+        {question.mediaUrl && (
+          <div className="overflow-hidden rounded-2xl border border-border bg-muted/20">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={question.mediaUrl}
+              alt={`Gambar pendukung pertanyaan ${questionIndex + 1}`}
+              className="w-full max-h-80 object-contain bg-muted/10"
+            />
+          </div>
+        )}
+      </div>
 
       <div className="space-y-4">
         <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1.5">

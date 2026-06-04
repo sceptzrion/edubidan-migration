@@ -148,6 +148,17 @@ export function LecturerQuizAnalysisPageContent({
                       <p className="text-sm sm:text-base font-extrabold text-foreground leading-relaxed">
                         {question.questionText}
                       </p>
+
+                      {question.mediaUrl && (
+                        <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-muted/20">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={question.mediaUrl}
+                            alt={`Gambar pendukung soal ${questionIndex + 1}`}
+                            className="w-full max-h-72 object-contain bg-muted/10"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-center min-w-full lg:min-w-80">

@@ -1,6 +1,7 @@
 import { ContentType, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { deleteCloudinaryAsset } from "@/services/media/cloudinary.service";
 
 const managedQuizSelect = {
   id: true,
@@ -29,6 +30,7 @@ const managedQuizSelect = {
       id: true,
       questionText: true,
       mediaUrl: true,
+      mediaPublicId: true,
       order: true,
       options: {
         select: {
@@ -53,17 +55,36 @@ export type ManagedQuiz = Prisma.KuisGetPayload<{
 }>;
 
 type NormalizedOption = {
+  id: number | null;
   text: string;
   isCorrect: boolean;
   order: number;
 };
 
 type NormalizedQuestion = {
+  id: number | null;
   questionText: string;
   mediaUrl: string | null;
+  mediaPublicId: string | null;
   order: number;
   options: NormalizedOption[];
 };
+
+type ExistingQuestion = {
+  id: number;
+  mediaPublicId: string | null;
+  options: Array<{
+    id: number;
+  }>;
+};
+
+function normalizePositiveId(value: unknown) {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id <= 0) return null;
+
+  return id;
+}
 
 function normalizeRequiredString(value: unknown) {
   if (typeof value !== "string") return null;
@@ -74,6 +95,8 @@ function normalizeRequiredString(value: unknown) {
 }
 
 function normalizeOptionalString(value: unknown) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
   if (typeof value !== "string") return undefined;
 
   const trimmed = value.trim();
@@ -107,20 +130,25 @@ function normalizeQuestions(value: unknown): NormalizedQuestion[] {
       if (!item || typeof item !== "object") return null;
 
       const question = item as {
+        id?: unknown;
         questionText?: unknown;
         mediaUrl?: unknown;
+        mediaPublicId?: unknown;
         options?: unknown;
         correctOptionId?: unknown;
       };
 
+      const id = normalizePositiveId(question.id);
       const questionText = normalizeRequiredString(question.questionText);
       const mediaUrl = normalizeOptionalString(question.mediaUrl) ?? null;
+      const mediaPublicId =
+        normalizeOptionalString(question.mediaPublicId) ?? null;
 
       if (!questionText || !Array.isArray(question.options)) {
         return null;
       }
 
-      const correctOptionId = Number(question.correctOptionId);
+      const correctOptionId = normalizePositiveId(question.correctOptionId);
 
       const options = question.options
         .map((optionItem, optionIndex) => {
@@ -131,16 +159,17 @@ function normalizeQuestions(value: unknown): NormalizedQuestion[] {
             text?: unknown;
           };
 
-          const optionId = Number(option.id);
+          const optionId = normalizePositiveId(option.id);
           const text = normalizeRequiredString(option.text);
 
           if (!text) return null;
 
           return {
+            id: optionId,
             text,
             isCorrect:
-              Number.isInteger(correctOptionId) &&
-              Number.isInteger(optionId) &&
+              correctOptionId !== null &&
+              optionId !== null &&
               optionId === correctOptionId,
             order: optionIndex + 1,
           };
@@ -152,8 +181,10 @@ function normalizeQuestions(value: unknown): NormalizedQuestion[] {
       const hasCorrectOption = options.some((option) => option.isCorrect);
 
       return {
+        id,
         questionText,
         mediaUrl,
+        mediaPublicId,
         order: questionIndex + 1,
         options: hasCorrectOption
           ? options
@@ -164,6 +195,252 @@ function normalizeQuestions(value: unknown): NormalizedQuestion[] {
       };
     })
     .filter((question): question is NormalizedQuestion => question !== null);
+}
+
+function getQuestionMediaPublicIds(
+  questions: Array<{ mediaPublicId: string | null }>
+) {
+  return questions
+    .map((question) => question.mediaPublicId)
+    .filter((publicId): publicId is string => Boolean(publicId));
+}
+
+async function deleteQuestionImages(publicIds: string[]) {
+  const uniquePublicIds = Array.from(new Set(publicIds));
+
+  await Promise.allSettled(
+    uniquePublicIds.map((publicId) => deleteCloudinaryAsset(publicId, "image"))
+  );
+}
+
+function getRemovedMediaPublicIds(params: {
+  existingQuestions: ExistingQuestion[];
+  nextQuestions: NormalizedQuestion[];
+}) {
+  const { existingQuestions, nextQuestions } = params;
+  const removedPublicIds: string[] = [];
+
+  const nextQuestionsById = new Map<number, NormalizedQuestion>();
+
+  nextQuestions.forEach((question) => {
+    if (question.id !== null) {
+      nextQuestionsById.set(question.id, question);
+    }
+  });
+
+  existingQuestions.forEach((existingQuestion) => {
+    const nextQuestion = nextQuestionsById.get(existingQuestion.id);
+
+    if (!existingQuestion.mediaPublicId) return;
+
+    if (!nextQuestion) {
+      removedPublicIds.push(existingQuestion.mediaPublicId);
+      return;
+    }
+
+    if (nextQuestion.mediaPublicId !== existingQuestion.mediaPublicId) {
+      removedPublicIds.push(existingQuestion.mediaPublicId);
+    }
+  });
+
+  return removedPublicIds;
+}
+
+async function syncQuestionOptions(params: {
+  tx: Prisma.TransactionClient;
+  soalId: number;
+  options: NormalizedOption[];
+}) {
+  const { tx, soalId, options } = params;
+
+  const existingOptions = await tx.soalOption.findMany({
+    where: {
+      soalId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const existingOptionIds = new Set(
+    existingOptions.map((option) => option.id)
+  );
+  const keptOptionIds: number[] = [];
+
+  for (const option of options) {
+    const shouldUpdateExisting =
+      option.id !== null && existingOptionIds.has(option.id);
+
+    if (shouldUpdateExisting && option.id !== null) {
+      await tx.soalOption.update({
+        where: {
+          id: option.id,
+        },
+        data: {
+          text: option.text,
+          isCorrect: option.isCorrect,
+          order: option.order,
+        },
+      });
+
+      keptOptionIds.push(option.id);
+      continue;
+    }
+
+    const createdOption = await tx.soalOption.create({
+      data: {
+        soalId,
+        text: option.text,
+        isCorrect: option.isCorrect,
+        order: option.order,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    keptOptionIds.push(createdOption.id);
+  }
+
+  const removedOptionIds = existingOptions
+    .map((option) => option.id)
+    .filter((optionId) => !keptOptionIds.includes(optionId));
+
+  if (removedOptionIds.length === 0) return;
+
+  await tx.attemptAnswer.updateMany({
+    where: {
+      optionId: {
+        in: removedOptionIds,
+      },
+    },
+    data: {
+      optionId: null,
+    },
+  });
+
+  await tx.soalOption.deleteMany({
+    where: {
+      id: {
+        in: removedOptionIds,
+      },
+    },
+  });
+}
+
+async function syncQuestions(params: {
+  tx: Prisma.TransactionClient;
+  kuisId: number;
+  questions: NormalizedQuestion[];
+}) {
+  const { tx, kuisId, questions } = params;
+
+  const existingQuestions = await tx.soal.findMany({
+    where: {
+      kuisId,
+    },
+    select: {
+      id: true,
+      mediaPublicId: true,
+      options: {
+        select: {
+          id: true,
+        },
+      },
+    },
+    orderBy: {
+      order: "asc",
+    },
+  });
+
+  const existingQuestionIds = new Set(
+    existingQuestions.map((question) => question.id)
+  );
+  const keptQuestionIds: number[] = [];
+
+  for (const question of questions) {
+    const shouldUpdateExisting =
+      question.id !== null && existingQuestionIds.has(question.id);
+
+    if (shouldUpdateExisting && question.id !== null) {
+      await tx.soal.update({
+        where: {
+          id: question.id,
+        },
+        data: {
+          questionText: question.questionText,
+          mediaUrl: question.mediaUrl,
+          mediaPublicId: question.mediaPublicId,
+          order: question.order,
+        },
+      });
+
+      await syncQuestionOptions({
+        tx,
+        soalId: question.id,
+        options: question.options,
+      });
+
+      keptQuestionIds.push(question.id);
+      continue;
+    }
+
+    const createdQuestion = await tx.soal.create({
+      data: {
+        kuisId,
+        questionText: question.questionText,
+        mediaUrl: question.mediaUrl,
+        mediaPublicId: question.mediaPublicId,
+        order: question.order,
+        options: {
+          create: question.options.map((option) => ({
+            text: option.text,
+            isCorrect: option.isCorrect,
+            order: option.order,
+          })),
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    keptQuestionIds.push(createdQuestion.id);
+  }
+
+  const removedQuestionIds = existingQuestions
+    .map((question) => question.id)
+    .filter((questionId) => !keptQuestionIds.includes(questionId));
+
+  if (removedQuestionIds.length === 0) {
+    return existingQuestions;
+  }
+
+  await tx.attemptAnswer.deleteMany({
+    where: {
+      soalId: {
+        in: removedQuestionIds,
+      },
+    },
+  });
+
+  await tx.soalOption.deleteMany({
+    where: {
+      soalId: {
+        in: removedQuestionIds,
+      },
+    },
+  });
+
+  await tx.soal.deleteMany({
+    where: {
+      id: {
+        in: removedQuestionIds,
+      },
+    },
+  });
+
+  return existingQuestions;
 }
 
 async function getNextContentOrder(moduleId: number) {
@@ -279,6 +556,7 @@ export async function createQuiz(params: {
             create: questions.map((question) => ({
               questionText: question.questionText,
               mediaUrl: question.mediaUrl,
+              mediaPublicId: question.mediaPublicId,
               order: question.order,
               options: {
                 create: question.options.map((option) => ({
@@ -348,6 +626,17 @@ export async function updateQuiz(params: {
     },
     select: {
       id: true,
+      soals: {
+        select: {
+          id: true,
+          mediaPublicId: true,
+          options: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -412,40 +701,43 @@ export async function updateQuiz(params: {
     data.timeLimitMinutes = minutes;
   }
 
-  if (params.questions !== undefined) {
-    const questions = normalizeQuestions(params.questions);
+  const normalizedQuestions =
+    params.questions === undefined ? null : normalizeQuestions(params.questions);
 
-    if (questions.length === 0) {
-      return {
-        success: false,
-        quiz: null,
-        error: "QUESTIONS_INVALID",
-      };
-    }
-
-    data.soals = {
-      deleteMany: {},
-      create: questions.map((question) => ({
-        questionText: question.questionText,
-        mediaUrl: question.mediaUrl,
-        order: question.order,
-        options: {
-          create: question.options.map((option) => ({
-            text: option.text,
-            isCorrect: option.isCorrect,
-            order: option.order,
-          })),
-        },
-      })),
+  if (params.questions !== undefined && normalizedQuestions?.length === 0) {
+    return {
+      success: false,
+      quiz: null,
+      error: "QUESTIONS_INVALID",
     };
   }
 
-  await prisma.kuis.update({
-    where: {
-      id: params.id,
-    },
-    data,
+  const removedMediaPublicIds =
+    normalizedQuestions === null
+      ? []
+      : getRemovedMediaPublicIds({
+          existingQuestions: existingQuiz.soals,
+          nextQuestions: normalizedQuestions,
+        });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.kuis.update({
+      where: {
+        id: params.id,
+      },
+      data,
+    });
+
+    if (normalizedQuestions !== null) {
+      await syncQuestions({
+        tx,
+        kuisId: params.id,
+        questions: normalizedQuestions,
+      });
+    }
   });
+
+  await deleteQuestionImages(removedMediaPublicIds);
 
   const quiz = await getManagedQuizById(params.id);
 
@@ -478,6 +770,11 @@ export async function deleteQuiz(id: number): Promise<DeleteQuizResult> {
     select: {
       id: true,
       contentId: true,
+      soals: {
+        select: {
+          mediaPublicId: true,
+        },
+      },
     },
   });
 
@@ -490,11 +787,15 @@ export async function deleteQuiz(id: number): Promise<DeleteQuizResult> {
     };
   }
 
+  const mediaPublicIds = getQuestionMediaPublicIds(quiz.soals);
+
   await prisma.moduleContent.delete({
     where: {
       id: quiz.contentId,
     },
   });
+
+  await deleteQuestionImages(mediaPublicIds);
 
   return {
     success: true,

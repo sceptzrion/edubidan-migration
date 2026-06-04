@@ -98,6 +98,7 @@ export async function getLecturerQuizPreviewData(params: {
         select: {
           id: true,
           questionText: true,
+          mediaUrl: true,
           options: {
             orderBy: {
               order: "asc",
@@ -181,6 +182,7 @@ export async function getLecturerQuizPreviewData(params: {
     return {
       id: question.id,
       questionText: question.questionText,
+      mediaUrl: question.mediaUrl,
       correctOptionId: String(correctOption?.id ?? ""),
       options: question.options.map((option) => {
         const pickedCount = answersForQuestion.filter(

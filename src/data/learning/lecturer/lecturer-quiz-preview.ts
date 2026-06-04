@@ -31,6 +31,7 @@ export interface LecturerQuizQuestionOption {
 export interface LecturerQuizQuestionStat {
   id: number;
   questionText: string;
+  mediaUrl: string | null;
   correctOptionId: string;
   options: LecturerQuizQuestionOption[];
 }
