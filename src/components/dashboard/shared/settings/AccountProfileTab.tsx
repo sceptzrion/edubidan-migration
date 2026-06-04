@@ -1,5 +1,7 @@
 "use client";
 
+"use client";
+
 import {
   ChangeEvent,
   FormEvent,
@@ -8,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Camera,
@@ -27,6 +30,7 @@ type AccountProfileData = {
   email: string;
   role: AccountRole;
   avatarUrl: string | null;
+  avatarPublicId: string | null;
   phoneNumber: string | null;
   mahasiswaProfile: {
     id: number;
@@ -42,6 +46,16 @@ type ProfileApiResponse = {
   success: boolean;
   message: string;
   data: AccountProfileData | null;
+};
+
+type MediaUploadApiResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    url: string;
+    secureUrl: string;
+    publicId: string;
+  } | null;
 };
 
 interface AccountProfileTabProps {
@@ -63,6 +77,10 @@ function getFriendlyProfileError(message: string) {
 
   if (message === "Phone number is invalid") {
     return "Nomor telepon tidak valid.";
+  }
+
+  if (message === "Avatar URL is invalid") {
+    return "URL foto profil tidak valid.";
   }
 
   if (message === "Authentication required") {
@@ -97,6 +115,15 @@ function getInitials(name: string, fallback: string) {
     .join("");
 }
 
+async function dataUrlToFile(dataUrl: string, filename: string) {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+
+  return new File([blob], filename, {
+    type: blob.type || "image/jpeg",
+  });
+}
+
 export function AccountProfileTab({
   roleLabel,
   title,
@@ -108,6 +135,7 @@ export function AccountProfileTab({
   accentClassName,
   initialsFallback,
 }: AccountProfileTabProps) {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState<AccountProfileData | null>(null);
@@ -115,13 +143,19 @@ export function AccountProfileTab({
   const [phone, setPhone] = useState("");
   const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string | null>(null);
   const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
+  const [shouldRemoveAvatar, setShouldRemoveAvatar] = useState(false);
   const [status, setStatus] = useState<
     "idle" | "loading" | "saving" | "saved" | "error"
   >("loading");
   const [message, setMessage] = useState("");
 
   const displayName = fullName || profile?.name || "-";
-  const avatarUrl = previewAvatarUrl ?? profile?.avatarUrl ?? null;
+  const avatarUrl = shouldRemoveAvatar
+    ? null
+    : previewAvatarUrl ?? profile?.avatarUrl ?? null;
+
+  const hasSavedAvatar = Boolean(profile?.avatarUrl);
+  const canRemoveAvatar = Boolean(previewAvatarUrl || hasSavedAvatar);
   const initials = useMemo(
     () => getInitials(displayName, initialsFallback),
     [displayName, initialsFallback]
@@ -149,6 +183,7 @@ export function AccountProfileTab({
       setFullName(result.data.name);
       setPhone(result.data.phoneNumber ?? "");
       setPreviewAvatarUrl(null);
+      setShouldRemoveAvatar(false);
       setStatus("idle");
     } catch (error) {
       console.error("Fetch profile error:", error);
@@ -187,12 +222,14 @@ export function AccountProfileTab({
     }
 
     const imageUrl = URL.createObjectURL(file);
+    setShouldRemoveAvatar(false);
     setSelectedImageSrc(imageUrl);
     event.target.value = "";
   };
 
   const handleCropComplete = (croppedImageUrl: string) => {
     setPreviewAvatarUrl(croppedImageUrl);
+    setShouldRemoveAvatar(false);
 
     if (selectedImageSrc) {
       URL.revokeObjectURL(selectedImageSrc);
@@ -201,14 +238,44 @@ export function AccountProfileTab({
     setSelectedImageSrc(null);
     setStatus("idle");
     setMessage(
-      "Foto hanya menjadi preview lokal. Penyimpanan foto permanen masuk tahap media upload."
+      "Foto siap disimpan. Klik Simpan Perubahan untuk mengupload foto profil."
     );
   };
 
   const handleRemovePhoto = () => {
     setPreviewAvatarUrl(null);
+    setShouldRemoveAvatar(true);
     setStatus("idle");
-    setMessage("");
+    setMessage(
+      "Foto profil akan dihapus setelah Anda menekan Simpan Perubahan."
+    );
+  };
+
+  const uploadAvatarIfNeeded = async () => {
+    if (!previewAvatarUrl) return undefined;
+
+    const avatarFile = await dataUrlToFile(previewAvatarUrl, "avatar.jpg");
+    const formData = new FormData();
+
+    formData.append("purpose", "avatar");
+    formData.append("file", avatarFile);
+
+    const response = await fetch("/api/media/upload", {
+      method: "POST",
+      credentials: "same-origin",
+      body: formData,
+    });
+
+    const result = (await response.json()) as MediaUploadApiResponse;
+
+    if (!response.ok || !result.success || !result.data) {
+      throw new Error(result.message || "Upload foto profil gagal.");
+    }
+
+    return {
+      avatarUrl: result.data.secureUrl || result.data.url,
+      avatarPublicId: result.data.publicId,
+    };
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -221,9 +288,15 @@ export function AccountProfileTab({
     }
 
     setStatus("saving");
-    setMessage("");
+    setMessage(
+      previewAvatarUrl
+        ? "Mengupload foto profil dan menyimpan perubahan..."
+        : ""
+    );
 
     try {
+      const uploadedAvatar = await uploadAvatarIfNeeded();
+
       const response = await fetch("/api/account/profile", {
         method: "PATCH",
         headers: {
@@ -233,6 +306,17 @@ export function AccountProfileTab({
         body: JSON.stringify({
           name: fullName,
           phoneNumber: phone,
+          ...(uploadedAvatar
+            ? {
+                avatarUrl: uploadedAvatar.avatarUrl,
+                avatarPublicId: uploadedAvatar.avatarPublicId,
+              }
+            : shouldRemoveAvatar
+              ? {
+                  avatarUrl: null,
+                  avatarPublicId: null,
+                }
+              : {}),
         }),
       });
 
@@ -247,8 +331,18 @@ export function AccountProfileTab({
       setProfile(result.data);
       setFullName(result.data.name);
       setPhone(result.data.phoneNumber ?? "");
+      setPreviewAvatarUrl(null);
+      setShouldRemoveAvatar(false);
       setStatus("saved");
-      setMessage("Perubahan profil berhasil disimpan.");
+      setMessage(
+        uploadedAvatar
+          ? "Foto profil dan perubahan data berhasil disimpan."
+          : shouldRemoveAvatar
+            ? "Foto profil berhasil dihapus dan perubahan data berhasil disimpan."
+            : "Perubahan profil berhasil disimpan."
+      );
+
+      router.refresh();
 
       window.setTimeout(() => {
         setStatus("idle");
@@ -256,8 +350,14 @@ export function AccountProfileTab({
       }, 2500);
     } catch (error) {
       console.error("Update profile error:", error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Terjadi kesalahan koneksi. Silakan coba lagi.";
+
       setStatus("error");
-      setMessage("Terjadi kesalahan koneksi. Silakan coba lagi.");
+      setMessage(message);
     }
   };
 
@@ -354,20 +454,20 @@ export function AccountProfileTab({
                 Pilih Foto
               </button>
 
-              {previewAvatarUrl && (
+              {canRemoveAvatar && (
                 <button
                   type="button"
                   onClick={handleRemovePhoto}
                   className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-red-500 text-xs font-extrabold hover:bg-red-500/10 transition-colors"
                 >
                   <Trash2 size={14} />
-                  Hapus Preview
+                  {previewAvatarUrl ? "Hapus Preview" : "Hapus Foto"}
                 </button>
               )}
             </div>
 
             <p className="text-[11px] text-center sm:text-left text-muted-foreground font-medium mt-2 leading-relaxed">
-              Penyimpanan foto permanen akan difungsionalkan pada tahap media upload.
+              Foto profil akan disimpan atau dihapus setelah Anda menekan Simpan Perubahan.
             </p>
           </div>
         </div>

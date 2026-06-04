@@ -68,6 +68,7 @@ model User {
   password        String   @db.VarChar(255)
   role            Role     @default(MAHASISWA)
   avatarUrl       String?  @db.VarChar(500)
+  avatarPublicId  String?  @db.VarChar(500)
   phoneNumber     String?  @db.VarChar(20)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())

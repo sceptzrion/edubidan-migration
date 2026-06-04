@@ -163,6 +163,7 @@ export async function getCurrentSessionUser() {
       email: true,
       role: true,
       avatarUrl: true,
+      avatarPublicId: true,
       phoneNumber: true,
       isActive: true,
       mahasiswaProfile: {
