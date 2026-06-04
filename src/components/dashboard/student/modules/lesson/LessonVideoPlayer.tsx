@@ -1,101 +1,120 @@
 "use client";
 
-import { useState } from "react";
-import { Maximize2, Pause, Play, SkipForward, Volume2 } from "lucide-react";
+import { ExternalLink, Play, Video } from "lucide-react";
 
 interface LessonVideoPlayerProps {
   title: string;
   thumbnailUrl: string;
   duration: string;
+  videoSource?: "upload" | "embed";
+  videoUrl?: string;
+}
+
+function getYouTubeEmbedUrl(url?: string | null) {
+  if (!url) return null;
+
+  try {
+    const parsedUrl = new URL(url);
+    const host = parsedUrl.hostname.replace("www.", "");
+
+    if (
+      (host === "youtube.com" || host === "m.youtube.com") &&
+      parsedUrl.pathname.startsWith("/embed/")
+    ) {
+      return parsedUrl.toString();
+    }
+
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const videoId = parsedUrl.searchParams.get("v");
+
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+    }
+
+    if (host === "youtu.be") {
+      const videoId = parsedUrl.pathname.replace("/", "");
+
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+    }
+
+    return parsedUrl.toString();
+  } catch {
+    return null;
+  }
 }
 
 export function LessonVideoPlayer({
   title,
   thumbnailUrl,
   duration,
+  videoSource = "embed",
+  videoUrl,
 }: LessonVideoPlayerProps) {
-  const [playing, setPlaying] = useState(false);
-
-  const togglePlaying = () => {
-    setPlaying((current) => !current);
-  };
+  const embedUrl =
+    videoSource === "embed" ? getYouTubeEmbedUrl(videoUrl) : null;
 
   return (
     <div className="relative bg-slate-900 rounded-2xl sm:rounded-3xl overflow-hidden aspect-video shadow-lg border border-border/50 group shrink-0">
-      <img
-        src={thumbnailUrl}
-        alt={title}
-        className="w-full h-full object-cover opacity-70"
-      />
-
-      <div className="absolute inset-0 flex items-center justify-center z-10">
-        <button
-          type="button"
-          onClick={togglePlaying}
-          className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-primary/90 hover:bg-primary flex items-center justify-center transition-all shadow-lg hover:scale-105 backdrop-blur-sm"
-          aria-label={playing ? "Jeda video" : "Putar video"}
-        >
-          {playing ? (
-            <Pause size={24} className="text-white sm:w-8 sm:h-8" />
-          ) : (
-            <Play
-              size={24}
-              className="text-white ml-1 sm:ml-1.5 sm:w-8 sm:h-8"
-            />
-          )}
-        </button>
-      </div>
-
-      <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-3 sm:p-6 z-10 transition-opacity duration-300">
-        <div className="w-full h-1 sm:h-1.5 bg-white/30 rounded-full mb-3 sm:mb-4 cursor-pointer relative group/bar">
-          <div className="h-full bg-primary rounded-full w-[35%] relative">
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-white rounded-full shadow-sm scale-0 group-hover/bar:scale-100 transition-transform" />
-          </div>
+      {videoSource === "upload" ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-white p-6 text-center">
+          <Video size={42} className="mb-4 opacity-70" />
+          <p className="text-sm sm:text-base font-extrabold">
+            Video Upload Belum Tersedia
+          </p>
+          <p className="text-xs sm:text-sm text-white/70 font-medium mt-2 max-w-md leading-relaxed">
+            Materi ini menggunakan sumber upload. Fitur upload video native
+            masih masuk backlog media upload. Gunakan embed link terlebih dahulu.
+          </p>
         </div>
+      ) : embedUrl ? (
+        <iframe
+          src={embedUrl}
+          title={title}
+          className="w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+        />
+      ) : (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={thumbnailUrl}
+            alt={title}
+            className="w-full h-full object-cover opacity-70"
+          />
 
-        <div className="flex items-center justify-between text-white text-[10px] sm:text-sm font-semibold">
-          <div className="flex items-center gap-3 sm:gap-6">
-            <button
-              type="button"
-              onClick={togglePlaying}
-              className="hover:text-primary transition-colors"
-              aria-label={playing ? "Jeda video" : "Putar video"}
-            >
-              {playing ? (
-                <Pause size={14} className="sm:w-4.5 sm:h-4.5" />
-              ) : (
-                <Play size={14} className="sm:w-4.5 sm:h-4.5" />
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-primary/90 flex items-center justify-center shadow-lg backdrop-blur-sm">
+              <Play
+                size={24}
+                className="text-white ml-1 sm:ml-1.5 sm:w-8 sm:h-8"
+              />
+            </div>
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent p-3 sm:p-6 z-10">
+            <div className="flex flex-col gap-2 text-white">
+              <p className="text-xs sm:text-sm font-extrabold">
+                Link video belum valid
+              </p>
+              <p className="text-[10px] sm:text-xs font-medium text-white/70">
+                Periksa kembali URL video materi. Durasi: {duration}
+              </p>
+
+              {videoUrl && (
+                <a
+                  href={videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex w-fit items-center gap-1.5 text-[10px] sm:text-xs font-bold text-primary hover:underline"
+                >
+                  Buka tautan asli
+                  <ExternalLink size={12} />
+                </a>
               )}
-            </button>
-
-            <button
-              type="button"
-              className="hover:text-primary transition-colors"
-              aria-label="Lewati video"
-            >
-              <SkipForward size={14} className="sm:w-4.5 sm:h-4.5" />
-            </button>
-
-            <button
-              type="button"
-              className="hover:text-primary transition-colors hidden sm:block"
-              aria-label="Atur volume"
-            >
-              <Volume2 size={14} className="sm:w-4.5 sm:h-4.5" />
-            </button>
-
-            <span>06:23 / {duration}</span>
+            </div>
           </div>
-
-          <button
-            type="button"
-            className="hover:text-primary transition-colors"
-            aria-label="Mode layar penuh"
-          >
-            <Maximize2 size={14} className="sm:w-4.5 sm:h-4.5" />
-          </button>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

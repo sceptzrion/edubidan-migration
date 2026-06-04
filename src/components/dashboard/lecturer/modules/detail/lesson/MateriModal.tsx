@@ -173,16 +173,12 @@ export function MateriModal({ initial, onSave, onClose }: MateriModalProps) {
             <div className="flex p-1 rounded-xl bg-muted/50 border border-border/50 mb-4">
               <button
                 type="button"
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    videoSource: "upload",
-                  }))
-                }
-                className={`flex-1 py-2.5 text-xs sm:text-sm font-extrabold rounded-lg flex items-center justify-center gap-2 transition-all ${
+                disabled
+                title="Upload video native belum tersedia pada tahap ini"
+                className={`flex-1 py-2.5 text-xs sm:text-sm font-extrabold rounded-lg flex items-center justify-center gap-2 transition-all cursor-not-allowed opacity-60 ${
                   form.videoSource === "upload"
                     ? "bg-card shadow-sm text-primary border border-border/50"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground"
                 }`}
               >
                 <Upload size={16} /> Upload Video
@@ -207,25 +203,30 @@ export function MateriModal({ initial, onSave, onClose }: MateriModalProps) {
             </div>
 
             {form.videoSource === "upload" ? (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-border bg-muted/20 rounded-xl p-8 text-center hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors group"
-              >
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+              <div className="border-2 border-dashed border-border bg-muted/20 rounded-xl p-8 text-center transition-colors">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
                   <Upload size={24} className="text-primary" />
                 </div>
                 <p className="text-sm font-extrabold text-foreground mb-1">
-                  Klik atau seret file video ke sini
+                  Upload video belum tersedia
                 </p>
-                <p className="text-xs font-medium text-muted-foreground">
-                  Format MP4 / WebM, maksimal 500MB
+                <p className="text-xs font-medium text-muted-foreground max-w-md mx-auto leading-relaxed">
+                  Untuk tahap ini, gunakan opsi Embed Link Tautan seperti YouTube agar video
+                  dapat diputar di preview dosen dan halaman mahasiswa.
                 </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      videoSource: "embed",
+                    }))
+                  }
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-extrabold hover:bg-primary/90 transition-colors"
+                >
+                  <LinkIcon size={14} />
+                  Gunakan Embed Link
+                </button>
               </div>
             ) : (
               <input

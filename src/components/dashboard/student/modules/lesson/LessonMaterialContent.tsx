@@ -37,6 +37,8 @@ export function LessonMaterialContent({
         title={item.title}
         thumbnailUrl={item.thumbnailUrl ?? moduleThumbnail}
         duration={item.duration}
+        videoSource={item.videoSource}
+        videoUrl={item.videoUrl}
       />
 
       <Summary

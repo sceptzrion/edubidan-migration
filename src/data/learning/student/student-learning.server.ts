@@ -350,6 +350,9 @@ function mapModuleToLearningModule(params: {
           content.materi.videoSource === VideoSource.EMBED
             ? getEmbedThumbnail(content.materi.videoUrl)
             : moduleData.bannerUrl ?? fallbackModuleImage,
+        videoSource:
+          content.materi.videoSource === VideoSource.UPLOAD ? "upload" : "embed",
+        videoUrl: content.materi.videoUrl ?? undefined,
         objectives: content.materi.objectives.map((objective) => objective.text),
         tools: content.materi.tools.map((tool) => tool.name),
       };
