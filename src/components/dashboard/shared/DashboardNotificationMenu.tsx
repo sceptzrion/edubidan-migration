@@ -160,13 +160,21 @@ export function DashboardNotificationMenu({
   }, []);
 
   useEffect(() => {
-    void fetchNotifications();
+    const timeoutId = window.setTimeout(() => {
+      void fetchNotifications();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [fetchNotifications]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
       void fetchNotifications();
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [fetchNotifications, isOpen]);
 
   const markAsRead = async (notificationId: number) => {

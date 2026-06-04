@@ -110,7 +110,11 @@ export function AccountNotificationTab({
   };
 
   useEffect(() => {
-    void fetchPreferences();
+    const timeoutId = window.setTimeout(() => {
+      void fetchPreferences();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   const toggleNotification = async (key: NotificationPreferenceKey) => {

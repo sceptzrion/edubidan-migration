@@ -13,16 +13,18 @@ import { AppToast, type AppToastState } from "@/components/ui/AppToast";
 
 export type ForgotPasswordStep = "email" | "otp" | "reset" | "success";
 
+type EmailDeliveryMeta = {
+  sent: boolean;
+  skipped: boolean;
+  error: string | null;
+};
+
 type ForgotPasswordApiResponse = {
   success: boolean;
   message: string;
   data: unknown;
   meta?: {
-    email?: {
-      sent: boolean;
-      skipped: boolean;
-      error: string | null;
-    };
+    email?: EmailDeliveryMeta;
   };
 };
 
@@ -42,12 +44,35 @@ function getFriendlyForgotPasswordError(message: string) {
       "Kata sandi minimal harus 8 karakter.",
     "Password confirmation does not match":
       "Konfirmasi kata sandi belum sesuai.",
-    "Failed to request OTP": "Gagal meminta kode OTP. Silakan coba lagi.",
-    "Failed to verify OTP": "Gagal memverifikasi OTP. Silakan coba lagi.",
+    "Failed to request OTP":
+      "Gagal meminta kode verifikasi. Silakan coba lagi.",
+    "Failed to verify OTP":
+      "Gagal memverifikasi kode OTP. Silakan coba lagi.",
     "Failed to reset password": "Gagal mengatur ulang kata sandi.",
   };
 
   return messages[message] ?? "Terjadi kesalahan. Silakan coba lagi.";
+}
+
+function getRequestOtpToast(emailMeta?: EmailDeliveryMeta): NonNullable<AppToastState> {
+  const hasDeliveryProblem =
+    Boolean(emailMeta) && (!emailMeta?.sent || emailMeta.error !== null);
+
+  if (hasDeliveryProblem) {
+    return {
+      type: "warning",
+      title: "Kode belum terkirim",
+      message:
+        "Kode verifikasi belum dapat dikirim ke email Anda. Silakan coba lagi beberapa saat.",
+    };
+  }
+
+  return {
+    type: "success",
+    title: "Kode verifikasi dikirim",
+    message:
+      "Kami telah mengirimkan kode verifikasi ke email Anda. Silakan cek kotak masuk atau folder spam.",
+  };
 }
 
 export function ForgotPasswordFlow() {
@@ -76,7 +101,7 @@ export function ForgotPasswordFlow() {
     toastTimeoutRef.current = window.setTimeout(() => {
       setToast(null);
       toastTimeoutRef.current = null;
-    }, 3500);
+    }, nextToast.durationMs ?? 3500);
   }, []);
 
   useEffect(() => {
@@ -143,33 +168,13 @@ export function ForgotPasswordFlow() {
       if (!response.ok || !result.success) {
         showToast({
           type: "error",
-          title: "Kode OTP gagal dikirim",
+          title: "Kode verifikasi gagal dikirim",
           message: getFriendlyForgotPasswordError(result.message),
         });
         return;
       }
 
-      const emailMeta = result.meta?.email;
-
-      let message = "Kode OTP berhasil dibuat. Silakan cek email Anda.";
-
-      if (emailMeta?.skipped) {
-        message =
-          "Kode OTP berhasil dibuat. Email dilewati karena RESEND_API_KEY belum dikonfigurasi. Cek kode OTP di Prisma Studio.";
-      }
-
-      if (emailMeta && !emailMeta.sent && !emailMeta.skipped && emailMeta.error) {
-        message = `Kode OTP dibuat, tetapi email gagal dikirim: ${emailMeta.error}`;
-      }
-
-      showToast({
-        type:
-          emailMeta && !emailMeta.sent && !emailMeta.skipped
-            ? "warning"
-            : "success",
-        title: "Kode OTP berhasil diproses",
-        message,
-      });
+      showToast(getRequestOtpToast(result.meta?.email));
 
       setOtp(["", "", "", ""]);
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
@@ -180,7 +185,7 @@ export function ForgotPasswordFlow() {
       showToast({
         type: "error",
         title: "Koneksi bermasalah",
-        message: "Terjadi kesalahan koneksi saat meminta kode OTP.",
+        message: "Terjadi kesalahan koneksi saat meminta kode verifikasi.",
       });
     } finally {
       setIsSubmitting(false);
@@ -259,7 +264,7 @@ export function ForgotPasswordFlow() {
       if (!response.ok || !result.success) {
         showToast({
           type: "error",
-          title: "Reset password gagal",
+          title: "Reset kata sandi gagal",
           message: getFriendlyForgotPasswordError(result.message),
         });
         return;
@@ -267,7 +272,7 @@ export function ForgotPasswordFlow() {
 
       showToast({
         type: "success",
-        title: "Password berhasil diubah",
+        title: "Kata sandi berhasil diubah",
         message: "Silakan masuk kembali menggunakan kata sandi baru.",
       });
 
@@ -278,7 +283,7 @@ export function ForgotPasswordFlow() {
       showToast({
         type: "error",
         title: "Koneksi bermasalah",
-        message: "Terjadi kesalahan koneksi saat mengatur ulang password.",
+        message: "Terjadi kesalahan koneksi saat mengatur ulang kata sandi.",
       });
     } finally {
       setIsSubmitting(false);

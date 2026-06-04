@@ -158,7 +158,11 @@ export function AccountProfileTab({
   };
 
   useEffect(() => {
-    void fetchProfile();
+    const timeoutId = window.setTimeout(() => {
+      void fetchProfile();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   useEffect(() => {

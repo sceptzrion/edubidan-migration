@@ -60,14 +60,20 @@ function getFriendlyUserError(message: string) {
       "Pengguna tidak dapat dihapus karena sudah memiliki data pembelajaran terkait.",
     "User deleted permanently": "Pengguna berhasil dihapus permanen.",
     "Admin account password cannot be reset here":
-      "Password akun admin tidak dapat direset dari halaman ini.",
-    "Failed to reset password": "Gagal mereset password pengguna.",
+      "Kata sandi akun admin tidak dapat direset dari halaman ini.",
+    "Failed to reset password": "Gagal mereset kata sandi pengguna.",
   };
 
   return (
     messages[message] ?? "Aksi gagal. Silakan periksa kembali data pengguna."
   );
 }
+
+type EmailMeta = {
+  sent: boolean;
+  skipped: boolean;
+  error: string | null;
+};
 
 type ResetPasswordApiResponse = {
   success: boolean;
@@ -76,13 +82,13 @@ type ResetPasswordApiResponse = {
     temporaryPassword: string | null;
   } | null;
   meta?: {
-    email?: {
-      sent: boolean;
-      skipped: boolean;
-      error: string | null;
-    };
+    email?: EmailMeta;
   };
 };
+
+function hasEmailDeliveryProblem(emailMeta?: EmailMeta) {
+  return Boolean(emailMeta) && (!emailMeta?.sent || emailMeta.error !== null);
+}
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -349,46 +355,27 @@ export default function AdminUsersPage() {
         setErrorMessage(message);
         showToast({
           type: "error",
-          title: "Reset password gagal",
+          title: "Reset kata sandi gagal",
           message,
         });
         return;
       }
 
       const emailMeta = result.meta?.email;
-      const temporaryPassword = result.data?.temporaryPassword;
-
-      let message = `Password sementara untuk ${targetUser.name} berhasil dibuat.`;
-
-      if (emailMeta?.sent) {
-        message = "Password sementara berhasil dikirim ke email pengguna.";
-      }
-
-      if (emailMeta?.skipped) {
-        message = temporaryPassword
-          ? `Email belum dikirim karena RESEND_API_KEY belum dikonfigurasi. Password sementara: ${temporaryPassword}`
-          : "Email belum dikirim karena RESEND_API_KEY belum dikonfigurasi.";
-      }
-
-      if (emailMeta && !emailMeta.sent && !emailMeta.skipped && emailMeta.error) {
-        message = temporaryPassword
-          ? `Password berhasil direset, tetapi email gagal dikirim: ${emailMeta.error}. Password sementara: ${temporaryPassword}`
-          : `Password berhasil direset, tetapi email gagal dikirim: ${emailMeta.error}`;
-      }
+      const emailDeliveryProblem = hasEmailDeliveryProblem(emailMeta);
 
       showToast({
-        type:
-          emailMeta && !emailMeta.sent && !emailMeta.skipped
-            ? "warning"
-            : "success",
-        title: "Password berhasil direset",
-        message,
-        durationMs: temporaryPassword ? 12000 : 3500,
+        type: emailDeliveryProblem ? "warning" : "success",
+        title: "Kata sandi berhasil direset",
+        message: emailDeliveryProblem
+          ? "Kata sandi berhasil direset, tetapi email belum dapat dikirim. Silakan ulangi reset kata sandi atau hubungi pengguna secara manual."
+          : "Kata sandi sementara berhasil dikirim ke email pengguna.",
       });
     } catch (error) {
       console.error("Reset user password error:", error);
 
-      const message = "Terjadi kesalahan koneksi saat mereset password pengguna.";
+      const message =
+        "Terjadi kesalahan koneksi saat mereset kata sandi pengguna.";
 
       setErrorMessage(message);
       showToast({
@@ -446,30 +433,14 @@ export default function AdminUsersPage() {
         closeModal();
 
         const emailMeta = result.meta?.email;
-        const passwordMessage =
-          data.useAutoPassword ?? true
-            ? `${createdUser.name} berhasil ditambahkan dengan password awal password123.`
-            : `${createdUser.name} berhasil ditambahkan dengan password manual dari admin.`;
-
-        let emailMessage = "Informasi akun akan dapat dikirim setelah email service aktif.";
-
-        if (emailMeta?.sent) {
-          emailMessage = "Informasi akun berhasil dikirim ke email pengguna.";
-        }
-
-        if (emailMeta?.skipped) {
-          emailMessage =
-            "Pengiriman email dilewati karena RESEND_API_KEY belum dikonfigurasi.";
-        }
-
-        if (emailMeta && !emailMeta.sent && !emailMeta.skipped && emailMeta.error) {
-          emailMessage = `Akun berhasil dibuat, tetapi email gagal dikirim: ${emailMeta.error}`;
-        }
+        const emailDeliveryProblem = hasEmailDeliveryProblem(emailMeta);
 
         showToast({
-          type: emailMeta && !emailMeta.sent && !emailMeta.skipped ? "warning" : "success",
+          type: emailDeliveryProblem ? "warning" : "success",
           title: "Pengguna berhasil ditambahkan",
-          message: `${passwordMessage} ${emailMessage}`,
+          message: emailDeliveryProblem
+            ? `${createdUser.name} berhasil ditambahkan, tetapi informasi akun belum dapat dikirim melalui email. Silakan periksa konfigurasi email atau hubungi pengguna secara manual.`
+            : `${createdUser.name} berhasil ditambahkan dan informasi akun telah dikirim ke email pengguna.`,
         });
 
         return;

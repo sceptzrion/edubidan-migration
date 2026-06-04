@@ -116,9 +116,9 @@ export function getRegisterSuccessEmailTemplate({
   appUrl = "http://localhost:3000",
 }: RegisterSuccessEmailParams) {
   return {
-    subject: "Pendaftaran EduBidan Berhasil",
+    subject: "Pendaftaran Akun EduBidan Berhasil",
     html: getEmailLayout({
-      title: "Pendaftaran EduBidan Berhasil",
+      title: "Pendaftaran Akun EduBidan Berhasil",
       preview: "Akun EduBidan Anda berhasil dibuat.",
       content: `
         <h2 style="margin: 0 0 12px; font-size: 20px;">Halo, ${name}</h2>
@@ -131,6 +131,10 @@ export function getRegisterSuccessEmailTemplate({
           <p style="margin: 0; color: #64748b; font-size: 12px; font-weight: 700;">Email Login</p>
           <p style="margin: 6px 0 0; color: #0f172a; font-size: 15px; font-weight: 700;">${email}</p>
         </div>
+
+        <p style="margin: 0 0 16px; color: #334155; font-size: 14px; line-height: 1.7;">
+          Silakan masuk ke aplikasi untuk mulai mengakses modul pembelajaran EduBidan.
+        </p>
 
         <div style="margin-top: 24px;">
           ${getButtonHtml("Masuk ke EduBidan", `${appUrl}/login`)}
@@ -150,10 +154,10 @@ export function getAccountCreatedEmailTemplate({
   const passwordBlock = password
     ? `
       <div style="margin: 18px 0; padding: 16px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 14px;">
-        <p style="margin: 0; color: #9a3412; font-size: 12px; font-weight: 700;">Password Awal</p>
+        <p style="margin: 0; color: #9a3412; font-size: 12px; font-weight: 700;">Kata Sandi Awal</p>
         <p style="margin: 6px 0 0; color: #0f172a; font-size: 15px; font-weight: 800; font-family: monospace;">${password}</p>
         <p style="margin: 10px 0 0; color: #9a3412; font-size: 12px; line-height: 1.6;">
-          Segera ubah password setelah berhasil masuk jika fitur ubah password sudah tersedia.
+          Demi keamanan akun, segera ubah kata sandi setelah berhasil masuk.
         </p>
       </div>
     `
@@ -199,15 +203,15 @@ export function getForgotPasswordOtpEmailTemplate({
   expiresInMinutes,
 }: ForgotPasswordOtpEmailParams) {
   return {
-    subject: "Kode OTP Reset Password EduBidan",
+    subject: "Kode Verifikasi Reset Kata Sandi EduBidan",
     html: getEmailLayout({
-      title: "Kode OTP Reset Password",
-      preview: "Gunakan kode OTP ini untuk reset password EduBidan.",
+      title: "Kode Verifikasi Reset Kata Sandi",
+      preview: "Gunakan kode OTP ini untuk mengatur ulang kata sandi EduBidan.",
       content: `
         <h2 style="margin: 0 0 12px; font-size: 20px;">Halo, ${name}</h2>
 
         <p style="margin: 0 0 16px; color: #334155; font-size: 14px; line-height: 1.7;">
-          Kami menerima permintaan reset password untuk akun EduBidan Anda. Gunakan kode OTP berikut:
+          Kami menerima permintaan untuk mengatur ulang kata sandi akun EduBidan Anda. Gunakan kode OTP berikut:
         </p>
 
         <div style="margin: 22px 0; padding: 18px; background: #f1f5f9; border-radius: 16px; text-align: center;">
@@ -232,15 +236,15 @@ export function getAdminResetPasswordEmailTemplate({
   appUrl = "http://localhost:3000",
 }: AdminResetPasswordEmailParams) {
   return {
-    subject: "Password EduBidan Anda Telah Direset",
+    subject: "Kata Sandi EduBidan Anda Telah Direset",
     html: getEmailLayout({
-      title: "Password EduBidan Direset",
-      preview: "Admin telah mereset password akun EduBidan Anda.",
+      title: "Kata Sandi EduBidan Direset",
+      preview: "Admin telah mereset kata sandi akun EduBidan Anda.",
       content: `
         <h2 style="margin: 0 0 12px; font-size: 20px;">Halo, ${name}</h2>
 
         <p style="margin: 0 0 16px; color: #334155; font-size: 14px; line-height: 1.7;">
-          Admin telah mereset password akun EduBidan Anda. Silakan masuk menggunakan kredensial berikut:
+          Admin telah mereset kata sandi akun EduBidan Anda. Silakan masuk menggunakan informasi berikut:
         </p>
 
         <div style="margin: 18px 0; padding: 16px; background: #f1f5f9; border-radius: 14px;">
@@ -249,8 +253,11 @@ export function getAdminResetPasswordEmailTemplate({
         </div>
 
         <div style="margin: 18px 0; padding: 16px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 14px;">
-          <p style="margin: 0; color: #9a3412; font-size: 12px; font-weight: 700;">Password Sementara</p>
+          <p style="margin: 0; color: #9a3412; font-size: 12px; font-weight: 700;">Kata Sandi Sementara</p>
           <p style="margin: 6px 0 0; color: #0f172a; font-size: 15px; font-weight: 800; font-family: monospace;">${temporaryPassword}</p>
+          <p style="margin: 10px 0 0; color: #9a3412; font-size: 12px; line-height: 1.6;">
+            Demi keamanan akun, segera ubah kata sandi setelah berhasil masuk.
+          </p>
         </div>
 
         <div style="margin-top: 24px;">
