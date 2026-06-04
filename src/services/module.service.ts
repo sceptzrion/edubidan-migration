@@ -136,6 +136,7 @@ const moduleDetailSelect = {
               id: true,
               questionText: true,
               mediaUrl: true,
+              mediaPublicId: true,
               order: true,
               options: {
                 select: {

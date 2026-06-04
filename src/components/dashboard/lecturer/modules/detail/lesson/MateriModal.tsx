@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   BookOpen,
@@ -34,13 +34,12 @@ function getInitialForm(initial: LecturerMateriItem | null): LecturerMateriItem 
     summary: initial?.summary ?? "",
     objectives: initial?.objectives ?? [""],
     tools: initial?.tools ?? [""],
-    duration: initial?.duration ?? "",
+    duration: initial?.duration ?? "- menit",
   };
 }
 
 export function MateriModal({ initial, onSave, onClose }: MateriModalProps) {
   const mounted = useIsClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<LecturerMateriItem>(() =>
     getInitialForm(initial)
@@ -89,7 +88,7 @@ export function MateriModal({ initial, onSave, onClose }: MateriModalProps) {
     onSave({
       ...form,
       title: form.title.trim(),
-      duration: form.duration.trim(),
+      duration: form.duration,
       summary: form.summary.trim(),
       objectives: form.objectives.map((item) => item.trim()).filter(Boolean),
       tools: form.tools.map((item) => item.trim()).filter(Boolean),
@@ -151,17 +150,12 @@ export function MateriModal({ initial, onSave, onClose }: MateriModalProps) {
               <label className="text-xs sm:text-sm mb-2.5 block font-bold text-foreground">
                 Durasi Video
               </label>
-              <input
-                value={form.duration}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    duration: event.target.value,
-                  }))
-                }
-                placeholder="Cth: 15 Menit"
-                className="w-full px-4 py-3 rounded-xl bg-card border border-border text-sm font-bold text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm transition-all"
-              />
+              <div className="w-full px-4 py-3 rounded-xl bg-muted/40 border border-border text-sm font-extrabold text-muted-foreground shadow-sm">
+                {form.duration || "- menit"}
+              </div>
+              <p className="text-[10px] text-muted-foreground font-medium mt-2 leading-relaxed">
+                Durasi otomatis dibaca dari link YouTube saat materi disimpan.
+              </p>
             </div>
           </div>
 
@@ -211,8 +205,9 @@ export function MateriModal({ initial, onSave, onClose }: MateriModalProps) {
                   Upload video belum tersedia
                 </p>
                 <p className="text-xs font-medium text-muted-foreground max-w-md mx-auto leading-relaxed">
-                  Untuk tahap ini, gunakan opsi Embed Link Tautan seperti YouTube agar video
-                  dapat diputar di preview dosen dan halaman mahasiswa.
+                  Untuk tahap ini, gunakan opsi Embed Link Tautan seperti
+                  YouTube agar video dapat diputar di preview dosen dan halaman
+                  mahasiswa.
                 </p>
                 <button
                   type="button"
@@ -229,17 +224,24 @@ export function MateriModal({ initial, onSave, onClose }: MateriModalProps) {
                 </button>
               </div>
             ) : (
-              <input
-                value={form.videoUrl ?? ""}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    videoUrl: event.target.value,
-                  }))
-                }
-                placeholder="Masukkan URL (Contoh: https://youtube.com/watch?v=...)"
-                className="w-full px-4 py-3.5 rounded-xl bg-muted/30 border border-border text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-              />
+              <>
+                <input
+                  value={form.videoUrl ?? ""}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      videoUrl: event.target.value,
+                    }))
+                  }
+                  placeholder="Masukkan URL (Contoh: https://youtube.com/watch?v=...)"
+                  className="w-full px-4 py-3.5 rounded-xl bg-muted/30 border border-border text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                />
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 font-medium leading-relaxed">
+                  Mendukung link YouTube biasa, YouTube Shorts, youtu.be, dan
+                  format embed. Durasi video akan dihitung otomatis setelah
+                  materi disimpan.
+                </p>
+              </>
             )}
           </div>
 
@@ -255,8 +257,8 @@ export function MateriModal({ initial, onSave, onClose }: MateriModalProps) {
                 </label>
 
                 <p className="text-[10px] sm:text-xs text-muted-foreground font-medium mt-1">
-                  Tulis penjelasan yang akan dibaca mahasiswa sebelum atau sesudah
-                  menonton video.
+                  Tulis penjelasan yang akan dibaca mahasiswa sebelum atau
+                  sesudah menonton video.
                 </p>
               </div>
 

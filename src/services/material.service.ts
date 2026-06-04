@@ -1,6 +1,7 @@
 import { ContentType, Prisma, VideoSource } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { getYouTubeVideoDurationMinutes } from "@/lib/video/youtube";
 
 const moduleContentSelect = {
   id: true,
@@ -167,6 +168,7 @@ function normalizeRequiredString(value: unknown) {
 }
 
 function normalizeOptionalString(value: unknown) {
+  if (value === null) return null;
   if (typeof value !== "string") return undefined;
 
   const trimmed = value.trim();
@@ -183,20 +185,6 @@ function normalizeStringList(value: unknown) {
     .filter(Boolean);
 }
 
-function normalizeEstimatedMinutes(value: unknown) {
-  if (value === undefined || value === null || value === "") {
-    return null;
-  }
-
-  const estimatedMinutes = Number(value);
-
-  if (!Number.isInteger(estimatedMinutes) || estimatedMinutes <= 0) {
-    return null;
-  }
-
-  return estimatedMinutes;
-}
-
 function normalizeVideoSource(value: unknown) {
   if (value === "upload" || value === VideoSource.UPLOAD) {
     return VideoSource.UPLOAD;
@@ -207,6 +195,17 @@ function normalizeVideoSource(value: unknown) {
   }
 
   return null;
+}
+
+async function resolveMaterialEstimatedMinutes(params: {
+  videoSource: VideoSource | null;
+  videoUrl: string | null | undefined;
+}) {
+  if (params.videoSource !== VideoSource.EMBED) {
+    return null;
+  }
+
+  return getYouTubeVideoDurationMinutes(params.videoUrl);
 }
 
 async function getNextContentOrder(moduleId: number) {
@@ -274,8 +273,7 @@ export type CreateMaterialResult =
       error:
         | "MODULE_NOT_FOUND"
         | "TITLE_REQUIRED"
-        | "VIDEO_SOURCE_INVALID"
-        | "ESTIMATED_MINUTES_INVALID";
+        | "VIDEO_SOURCE_INVALID";
     };
 
 export async function createMaterial(params: {
@@ -309,7 +307,6 @@ export async function createMaterial(params: {
   const description = normalizeOptionalString(params.description);
   const videoSource = normalizeVideoSource(params.videoSource);
   const videoUrl = normalizeOptionalString(params.videoUrl);
-  const estimatedMinutes = normalizeEstimatedMinutes(params.estimatedMinutes);
   const objectives = normalizeStringList(params.objectives);
   const tools = normalizeStringList(params.tools);
 
@@ -329,13 +326,10 @@ export async function createMaterial(params: {
     };
   }
 
-  if (params.estimatedMinutes !== undefined && estimatedMinutes === null) {
-    return {
-      success: false,
-      material: null,
-      error: "ESTIMATED_MINUTES_INVALID",
-    };
-  }
+  const estimatedMinutes = await resolveMaterialEstimatedMinutes({
+    videoSource,
+    videoUrl,
+  });
 
   const order = await getNextContentOrder(params.moduleId);
 
@@ -403,8 +397,7 @@ export type UpdateMaterialResult =
       error:
         | "MATERIAL_NOT_FOUND"
         | "TITLE_REQUIRED"
-        | "VIDEO_SOURCE_INVALID"
-        | "ESTIMATED_MINUTES_INVALID";
+        | "VIDEO_SOURCE_INVALID";
     };
 
 export async function updateMaterial(params: {
@@ -423,6 +416,8 @@ export async function updateMaterial(params: {
     },
     select: {
       id: true,
+      videoSource: true,
+      videoUrl: true,
     },
   });
 
@@ -435,6 +430,8 @@ export async function updateMaterial(params: {
   }
 
   const data: Prisma.MateriUpdateInput = {};
+  let nextVideoSource = existingMaterial.videoSource;
+  let nextVideoUrl = existingMaterial.videoUrl;
 
   if (params.title !== undefined) {
     const title = normalizeRequiredString(params.title);
@@ -465,25 +462,22 @@ export async function updateMaterial(params: {
       };
     }
 
+    nextVideoSource = videoSource;
     data.videoSource = videoSource;
   }
 
   if (params.videoUrl !== undefined) {
-    data.videoUrl = normalizeOptionalString(params.videoUrl);
+    const videoUrl = normalizeOptionalString(params.videoUrl) ?? null;
+
+    nextVideoUrl = videoUrl;
+    data.videoUrl = videoUrl;
   }
 
-  if (params.estimatedMinutes !== undefined) {
-    const estimatedMinutes = normalizeEstimatedMinutes(params.estimatedMinutes);
-
-    if (estimatedMinutes === null) {
-      return {
-        success: false,
-        material: null,
-        error: "ESTIMATED_MINUTES_INVALID",
-      };
-    }
-
-    data.estimatedMinutes = estimatedMinutes;
+  if (params.videoSource !== undefined || params.videoUrl !== undefined) {
+    data.estimatedMinutes = await resolveMaterialEstimatedMinutes({
+      videoSource: nextVideoSource,
+      videoUrl: nextVideoUrl,
+    });
   }
 
   if (params.objectives !== undefined) {
@@ -525,54 +519,6 @@ export async function updateMaterial(params: {
   };
 }
 
-export type DeleteMaterialResult =
-  | {
-      success: true;
-      deletedMaterialId: number;
-      deletedContentId: number;
-      error: null;
-    }
-  | {
-      success: false;
-      deletedMaterialId: null;
-      deletedContentId: null;
-      error: "MATERIAL_NOT_FOUND";
-    };
-
-export async function deleteMaterial(id: number): Promise<DeleteMaterialResult> {
-  const material = await prisma.materi.findUnique({
-    where: {
-      id,
-    },
-    select: {
-      id: true,
-      contentId: true,
-    },
-  });
-
-  if (!material) {
-    return {
-      success: false,
-      deletedMaterialId: null,
-      deletedContentId: null,
-      error: "MATERIAL_NOT_FOUND",
-    };
-  }
-
-  await prisma.moduleContent.delete({
-    where: {
-      id: material.contentId,
-    },
-  });
-
-  return {
-    success: true,
-    deletedMaterialId: material.id,
-    deletedContentId: material.contentId,
-    error: null,
-  };
-}
-
 export type UpdateMaterialProgressResult =
   | {
       success: true;
@@ -586,20 +532,21 @@ export type UpdateMaterialProgressResult =
       progress: null;
       error:
         | "USER_ID_REQUIRED"
-        | "COMPLETED_STATUS_REQUIRED"
+        | "MATERIAL_ID_REQUIRED"
         | "USER_NOT_FOUND"
-        | "USER_INACTIVE"
         | "MATERIAL_NOT_FOUND"
         | "USER_NOT_ENROLLED"
-        | "USER_KICKED";
+        | "USER_KICKED"
+        | "COMPLETION_STATUS_INVALID";
     };
 
 export async function updateMaterialProgress(params: {
   userId: unknown;
-  materiId: number;
+  materialId: unknown;
   isCompleted: unknown;
 }): Promise<UpdateMaterialProgressResult> {
   const userId = Number(params.userId);
+  const materialId = Number(params.materialId);
 
   if (!Number.isInteger(userId) || userId <= 0) {
     return {
@@ -609,11 +556,19 @@ export async function updateMaterialProgress(params: {
     };
   }
 
+  if (!Number.isInteger(materialId) || materialId <= 0) {
+    return {
+      success: false,
+      progress: null,
+      error: "MATERIAL_ID_REQUIRED",
+    };
+  }
+
   if (typeof params.isCompleted !== "boolean") {
     return {
       success: false,
       progress: null,
-      error: "COMPLETED_STATUS_REQUIRED",
+      error: "COMPLETION_STATUS_INVALID",
     };
   }
 
@@ -627,7 +582,7 @@ export async function updateMaterialProgress(params: {
     },
   });
 
-  if (!user) {
+  if (!user || !user.isActive) {
     return {
       success: false,
       progress: null,
@@ -635,17 +590,9 @@ export async function updateMaterialProgress(params: {
     };
   }
 
-  if (!user.isActive) {
-    return {
-      success: false,
-      progress: null,
-      error: "USER_INACTIVE",
-    };
-  }
-
-  const materi = await prisma.materi.findUnique({
+  const material = await prisma.materi.findUnique({
     where: {
-      id: params.materiId,
+      id: materialId,
     },
     select: {
       id: true,
@@ -657,7 +604,7 @@ export async function updateMaterialProgress(params: {
     },
   });
 
-  if (!materi) {
+  if (!material) {
     return {
       success: false,
       progress: null,
@@ -669,7 +616,7 @@ export async function updateMaterialProgress(params: {
     where: {
       userId_moduleId: {
         userId,
-        moduleId: materi.content.moduleId,
+        moduleId: material.content.moduleId,
       },
     },
     select: {
@@ -698,16 +645,16 @@ export async function updateMaterialProgress(params: {
     where: {
       userId_materiId: {
         userId,
-        materiId: params.materiId,
+        materiId: materialId,
       },
-    },
-    update: {
-      isCompleted: params.isCompleted,
-      completedAt: params.isCompleted ? new Date() : null,
     },
     create: {
       userId,
-      materiId: params.materiId,
+      materiId: materialId,
+      isCompleted: params.isCompleted,
+      completedAt: params.isCompleted ? new Date() : null,
+    },
+    update: {
       isCompleted: params.isCompleted,
       completedAt: params.isCompleted ? new Date() : null,
     },

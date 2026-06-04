@@ -6,6 +6,7 @@ import type {
   LecturerPlaylistItem,
   LecturerQuizQuestion,
 } from "@/components/dashboard/lecturer/modules/detail/PlaylistTab";
+import { formatMinutes, formatRoundedModuleMinutes } from "@/lib/video/youtube";
 import { getModuleById } from "@/services/module.service";
 
 export type LecturerModuleDetailStatus = "Publik" | "Draft";
@@ -44,22 +45,7 @@ function mapModuleStatus(status: ModuleStatus): LecturerModuleDetailStatus {
 }
 
 function formatEstimatedTime(minutes: number | null) {
-  if (!minutes || minutes <= 0) {
-    return "-";
-  }
-
-  if (minutes < 60) {
-    return `${minutes} Menit`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  if (remainingMinutes === 0) {
-    return `${hours} Jam`;
-  }
-
-  return `${hours} Jam ${remainingMinutes} Menit`;
+  return formatMinutes(minutes);
 }
 
 function mapVideoSource(source: VideoSource): LecturerMateriItem["videoSource"] {
@@ -83,9 +69,7 @@ function mapMateriItem(
     title: materi.title,
     videoSource: mapVideoSource(materi.videoSource),
     videoUrl: materi.videoUrl ?? undefined,
-    duration: materi.estimatedMinutes
-      ? `${materi.estimatedMinutes} menit`
-      : "--:--",
+    duration: formatEstimatedTime(materi.estimatedMinutes),
     summary: materi.description ?? "",
     objectives: materi.objectives.map((objective) => objective.text),
     tools: materi.tools.map((tool) => tool.name),
@@ -100,6 +84,7 @@ function mapQuizQuestion(soal: ModuleDetailSoal): LecturerQuizQuestion {
     id: soal.id,
     questionText: soal.questionText,
     mediaUrl: soal.mediaUrl,
+    mediaPublicId: soal.mediaPublicId,
     options: soal.options.map((option) => ({
       id: option.id,
       text: option.text,
@@ -127,6 +112,26 @@ function mapKuisItem(
     questions,
     questionCount: questions.length,
   };
+}
+
+function getContentEstimatedMinutes(content: ModuleDetailContent) {
+  if (content.kind === ContentType.MATERI) {
+    return content.materi?.estimatedMinutes ?? 0;
+  }
+
+  if (content.kind === ContentType.KUIS) {
+    return content.kuis?.timeLimitMinutes ?? 0;
+  }
+
+  return 0;
+}
+
+function calculateModuleEstimatedTime(moduleData: ModuleDetailData) {
+  const totalMinutes = moduleData.contents.reduce((total, content) => {
+    return total + getContentEstimatedMinutes(content);
+  }, 0);
+
+  return formatRoundedModuleMinutes(totalMinutes);
 }
 
 function mapPlaylistItems(moduleData: ModuleDetailData): LecturerPlaylistItem[] {
@@ -157,7 +162,7 @@ export async function getLecturerModuleDetailData(
       title: moduleData.title,
       description: moduleData.description ?? "",
       objectives: moduleData.objectives.map((objective) => objective.text),
-      estimatedTime: formatEstimatedTime(moduleData.estimatedMinutes),
+      estimatedTime: calculateModuleEstimatedTime(moduleData),
       instructor: moduleData.dosenProfile.user.name,
       status: mapModuleStatus(moduleData.status),
       code: moduleData.accessCode,

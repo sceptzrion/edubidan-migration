@@ -2,44 +2,14 @@
 
 import { ExternalLink, Play, Video } from "lucide-react";
 
+import { getYouTubeEmbedUrl } from "@/lib/video/youtube";
+
 interface LessonVideoPlayerProps {
   title: string;
   thumbnailUrl: string;
   duration: string;
   videoSource?: "upload" | "embed";
   videoUrl?: string;
-}
-
-function getYouTubeEmbedUrl(url?: string | null) {
-  if (!url) return null;
-
-  try {
-    const parsedUrl = new URL(url);
-    const host = parsedUrl.hostname.replace("www.", "");
-
-    if (
-      (host === "youtube.com" || host === "m.youtube.com") &&
-      parsedUrl.pathname.startsWith("/embed/")
-    ) {
-      return parsedUrl.toString();
-    }
-
-    if (host === "youtube.com" || host === "m.youtube.com") {
-      const videoId = parsedUrl.searchParams.get("v");
-
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
-    }
-
-    if (host === "youtu.be") {
-      const videoId = parsedUrl.pathname.replace("/", "");
-
-      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
-    }
-
-    return parsedUrl.toString();
-  } catch {
-    return null;
-  }
 }
 
 export function LessonVideoPlayer({

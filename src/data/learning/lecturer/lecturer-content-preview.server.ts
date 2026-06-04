@@ -1,6 +1,7 @@
 import { ContentType, VideoSource } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { formatMinutes } from "@/lib/video/youtube";
 import type {
   LecturerLessonPreviewData,
   LecturerLessonPreviewDetail,
@@ -11,22 +12,7 @@ const fallbackThumbnail =
   "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080";
 
 function formatDuration(minutes: number | null) {
-  if (!minutes || minutes <= 0) {
-    return "--:--";
-  }
-
-  if (minutes < 60) {
-    return `${minutes} menit`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  if (remainingMinutes === 0) {
-    return `${hours} jam`;
-  }
-
-  return `${hours} jam ${remainingMinutes} menit`;
+  return formatMinutes(minutes);
 }
 
 function mapVideoSource(source: VideoSource): LecturerLessonPreviewDetail["videoSource"] {

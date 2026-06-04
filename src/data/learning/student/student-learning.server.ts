@@ -2,6 +2,7 @@ import { ContentType, VideoSource } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { getDisplayNameParts } from "@/lib/text/name";
+import { formatMinutes, formatRoundedModuleMinutes } from "@/lib/video/youtube";
 import type { LearningItem, LearningModule } from "@/types/learning";
 
 const fallbackModuleImage =
@@ -61,22 +62,7 @@ export interface StudentLessonData {
 }
 
 function formatDuration(minutes: number | null) {
-  if (!minutes || minutes <= 0) {
-    return "-";
-  }
-
-  if (minutes < 60) {
-    return `${minutes} Menit`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  if (remainingMinutes === 0) {
-    return `${hours} Jam`;
-  }
-
-  return `${hours} Jam ${remainingMinutes} Menit`;
+  return formatMinutes(minutes);
 }
 
 function calculateModuleProgress(params: {
@@ -120,6 +106,14 @@ function getEmbedThumbnail(videoUrl: string | null) {
 
     if (host === "youtu.be") {
       const videoId = parsedUrl.pathname.replace("/", "");
+
+      return videoId
+        ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+        : fallbackModuleImage;
+    }
+
+    if (host === "youtube.com" && parsedUrl.pathname.startsWith("/embed/")) {
+      const videoId = parsedUrl.pathname.replace("/embed/", "").split("/")[0];
 
       return videoId
         ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
@@ -324,6 +318,14 @@ async function getStudentEnrollmentData(userId: number) {
   };
 }
 
+function calculateLearningModuleDuration(items: LearningItem[]) {
+  const totalMinutes = items.reduce((total, item) => {
+    return total + (item.estimatedMinutes > 0 ? item.estimatedMinutes : 0);
+  }, 0);
+
+  return formatRoundedModuleMinutes(totalMinutes);
+}
+
 function mapModuleToLearningModule(params: {
   enrollment: Awaited<
     ReturnType<typeof getStudentEnrollmentData>
@@ -423,7 +425,7 @@ function mapModuleToLearningModule(params: {
     banner: moduleData.bannerUrl ?? fallbackModuleImage,
     thumbnail: moduleData.bannerUrl ?? fallbackModuleImage,
     progress: progress.progress,
-    estimatedTime: formatDuration(moduleData.estimatedMinutes),
+    estimatedTime: calculateLearningModuleDuration(items),
     instructor: {
       name: moduleData.dosenProfile.user.name,
       email: moduleData.dosenProfile.user.email,

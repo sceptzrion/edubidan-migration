@@ -133,49 +133,12 @@ type ReorderApiResponse = {
   } | null;
 };
 
-function parseDurationToMinutes(value: string) {
-  const normalized = value.trim().toLowerCase();
-
-  if (!normalized || normalized === "--:--") {
-    return undefined;
-  }
-
-  const hourMatch = normalized.match(/(\d+)\s*(jam|j)/);
-  const minuteMatch = normalized.match(/(\d+)\s*(menit|min|m)/);
-
-  const hours = hourMatch ? Number(hourMatch[1]) : 0;
-  const minutes = minuteMatch ? Number(minuteMatch[1]) : 0;
-
-  if (hours > 0 || minutes > 0) {
-    return hours * 60 + minutes;
-  }
-
-  const plainNumber = Number(normalized.replace(/[^\d]/g, ""));
-
-  if (Number.isInteger(plainNumber) && plainNumber > 0) {
-    return plainNumber;
-  }
-
-  return undefined;
-}
-
 function formatDuration(minutes: number | null) {
   if (!minutes || minutes <= 0) {
-    return "--:--";
+    return "- menit";
   }
 
-  if (minutes < 60) {
-    return `${minutes} menit`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  if (remainingMinutes === 0) {
-    return `${hours} jam`;
-  }
-
-  return `${hours} jam ${remainingMinutes} menit`;
+  return `${minutes} menit`;
 }
 
 function mapMaterialApiToItem(material: MaterialApiData): LecturerMateriItem {
@@ -442,7 +405,6 @@ export function PlaylistTab({ moduleId, initialItems }: PlaylistTabProps) {
             description: materi.summary,
             videoSource: materi.videoSource,
             videoUrl: materi.videoUrl,
-            estimatedMinutes: parseDurationToMinutes(materi.duration),
             objectives: materi.objectives,
             tools: materi.tools,
           }),
