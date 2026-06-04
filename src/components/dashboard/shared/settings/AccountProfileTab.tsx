@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { AvatarCropModal } from "@/components/dashboard/shared/AvatarCropModal";
+import { updateStoredUserProfile } from "@/lib/auth/client-auth";
 
 type AccountRole = "ADMIN" | "DOSEN" | "MAHASISWA";
 
@@ -334,6 +335,13 @@ export function AccountProfileTab({
       setPreviewAvatarUrl(null);
       setShouldRemoveAvatar(false);
       setStatus("saved");
+
+      updateStoredUserProfile({
+        name: result.data.name,
+        avatarUrl: result.data.avatarUrl,
+        phoneNumber: result.data.phoneNumber,
+      });
+      
       setMessage(
         uploadedAvatar
           ? "Foto profil dan perubahan data berhasil disimpan."

@@ -88,6 +88,26 @@ export function setStoredUser(user: StoredUser, remember = false) {
   notifyAuthStateChanged();
 }
 
+export function updateStoredUserProfile(
+  updates: Partial<
+    Pick<StoredUser, "name" | "avatarUrl" | "phoneNumber" | "isActive">
+  >
+) {
+  if (!isBrowser()) return;
+
+  const currentUser = getStoredUser();
+
+  if (!currentUser) return;
+
+  setStoredUser(
+    {
+      ...currentUser,
+      ...updates,
+    },
+    Boolean(localStorage.getItem(AUTH_STORAGE_KEY))
+  );
+}
+
 export function clearStoredUser() {
   if (!isBrowser()) return;
 
