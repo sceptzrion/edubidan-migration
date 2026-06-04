@@ -1,12 +1,14 @@
 import { ContentType, ModuleStatus, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { deleteCloudinaryAsset } from "@/services/media/cloudinary.service";
 
 const moduleListSelect = {
   id: true,
   title: true,
   description: true,
   bannerUrl: true,
+  bannerPublicId: true,
   accessCode: true,
   status: true,
   estimatedMinutes: true,
@@ -60,6 +62,7 @@ const moduleDetailSelect = {
   title: true,
   description: true,
   bannerUrl: true,
+  bannerPublicId: true,
   accessCode: true,
   status: true,
   estimatedMinutes: true,
@@ -314,11 +317,31 @@ export async function getModuleById(id: number) {
 }
 
 function normalizeOptionalString(value: unknown) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
   if (typeof value !== "string") return undefined;
 
   const trimmed = value.trim();
 
   return trimmed.length > 0 ? trimmed : null;
+}
+
+async function deleteOldBannerIfNeeded(params: {
+  oldPublicId: string | null;
+  newPublicId?: string | null;
+  shouldUpdateBanner: boolean;
+}) {
+  const { oldPublicId, newPublicId, shouldUpdateBanner } = params;
+
+  if (!shouldUpdateBanner) return;
+  if (!oldPublicId) return;
+  if (oldPublicId === newPublicId) return;
+
+  try {
+    await deleteCloudinaryAsset(oldPublicId, "image");
+  } catch (error) {
+    console.error("Failed to delete old module banner from Cloudinary:", error);
+  }
 }
 
 function normalizeRequiredString(value: unknown) {
@@ -382,6 +405,7 @@ export async function createModule(params: {
   title: unknown;
   description?: unknown;
   bannerUrl?: unknown;
+  bannerPublicId?: unknown;
   accessCode: unknown;
   estimatedMinutes?: unknown;
   objectives?: unknown;
@@ -390,6 +414,7 @@ export async function createModule(params: {
   const title = normalizeRequiredString(params.title);
   const description = normalizeOptionalString(params.description);
   const bannerUrl = normalizeOptionalString(params.bannerUrl);
+  const bannerPublicId = normalizeOptionalString(params.bannerPublicId);
   const accessCode = normalizeRequiredString(params.accessCode)?.toUpperCase();
   const estimatedMinutes =
     params.estimatedMinutes === undefined
@@ -469,6 +494,7 @@ export async function createModule(params: {
       title,
       description,
       bannerUrl,
+      bannerPublicId,
       accessCode,
       status: ModuleStatus.DRAFT,
       estimatedMinutes,
@@ -515,6 +541,7 @@ export async function updateModule(params: {
   title?: unknown;
   description?: unknown;
   bannerUrl?: unknown;
+  bannerPublicId?: unknown;
   accessCode?: unknown;
   estimatedMinutes?: unknown;
   objectives?: unknown;
@@ -525,6 +552,7 @@ export async function updateModule(params: {
     },
     select: {
       id: true,
+      bannerPublicId: true,
     },
   });
 
@@ -558,6 +586,14 @@ export async function updateModule(params: {
 
   if (params.bannerUrl !== undefined) {
     data.bannerUrl = normalizeOptionalString(params.bannerUrl);
+
+    if (params.bannerPublicId === undefined) {
+      data.bannerPublicId = null;
+    }
+  }
+
+  if (params.bannerPublicId !== undefined) {
+    data.bannerPublicId = normalizeOptionalString(params.bannerPublicId);
   }
 
   if (params.accessCode !== undefined) {
@@ -622,6 +658,19 @@ export async function updateModule(params: {
       id: params.id,
     },
     data,
+  });
+
+  const newPublicId =
+    params.bannerPublicId !== undefined
+      ? normalizeOptionalString(params.bannerPublicId)
+      : params.bannerUrl !== undefined
+        ? null
+        : undefined;
+
+  await deleteOldBannerIfNeeded({
+    oldPublicId: existingModule.bannerPublicId,
+    newPublicId,
+    shouldUpdateBanner: params.bannerUrl !== undefined,
   });
 
   const moduleData = await getModuleById(params.id);

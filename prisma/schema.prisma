@@ -139,6 +139,7 @@ model Module {
   title           String       @db.VarChar(200)
   description     String?      @db.Text
   bannerUrl       String?      @db.VarChar(500)
+  bannerPublicId  String?      @db.VarChar(500)
   accessCode      String       @unique @db.VarChar(20)
   status          ModuleStatus @default(DRAFT)
   estimatedMinutes Int?        // estimasi waktu belajar dalam menit

@@ -18,6 +18,7 @@ type ModuleApiData = {
   id: number;
   title: string;
   bannerUrl: string | null;
+  bannerPublicId: string | null;
   accessCode: string;
   status: "DRAFT" | "PUBLIK";
   updatedAt: string;
@@ -83,6 +84,7 @@ function mapApiModuleToLecturerModule(module: ModuleApiData): LecturerModule {
     updated: formatUpdatedAt(module.updatedAt),
     code: module.accessCode,
     image: module.bannerUrl ?? undefined,
+    bannerPublicId: module.bannerPublicId,
   };
 }
 
@@ -181,6 +183,12 @@ export function LecturerModulesClient({
           body: JSON.stringify({
             title: form.title,
             status: form.status,
+            ...(form.bannerUrl !== undefined
+              ? {
+                  bannerUrl: form.bannerUrl,
+                  bannerPublicId: form.bannerPublicId ?? null,
+                }
+              : {}),
           }),
         }
       );
@@ -188,12 +196,15 @@ export function LecturerModulesClient({
       const result = (await response.json()) as ModuleApiResponse;
 
       if (!response.ok || !result.success || !result.data) {
+        const message = getFriendlyModuleError(result.message);
+
         showToast({
           type: "error",
           title: editing ? "Gagal memperbarui modul" : "Gagal menambahkan modul",
-          message: getFriendlyModuleError(result.message),
+          message,
         });
-        return;
+
+        throw new Error(message);
       }
 
       const savedModule = mapApiModuleToLecturerModule(result.data);
@@ -225,11 +236,15 @@ export function LecturerModulesClient({
     } catch (error) {
       console.error("Save module error:", error);
 
-      showToast({
-        type: "error",
-        title: editing ? "Gagal memperbarui modul" : "Gagal menambahkan modul",
-        message: "Terjadi kesalahan koneksi. Silakan coba lagi.",
-      });
+      if (!(error instanceof Error)) {
+        showToast({
+          type: "error",
+          title: editing ? "Gagal memperbarui modul" : "Gagal menambahkan modul",
+          message: "Terjadi kesalahan koneksi. Silakan coba lagi.",
+        });
+      }
+
+      throw error;
     } finally {
       setIsSaving(false);
     }

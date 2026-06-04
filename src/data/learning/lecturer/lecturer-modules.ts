@@ -8,11 +8,15 @@ export interface LecturerModule {
   updated: string;
   code: string;
   image?: string;
+  bannerPublicId?: string | null;
 }
 
 export interface LecturerModuleFormValue {
   title: string;
   status: LecturerModuleStatus;
+  bannerUrl?: string | null;
+  bannerPublicId?: string | null;
+  shouldRemoveBanner?: boolean;
 }
 
 export const lecturerModules: LecturerModule[] = [

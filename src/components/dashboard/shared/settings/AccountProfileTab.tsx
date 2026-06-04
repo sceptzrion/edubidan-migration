@@ -1,7 +1,5 @@
 "use client";
 
-"use client";
-
 import {
   ChangeEvent,
   FormEvent,
@@ -341,7 +339,7 @@ export function AccountProfileTab({
         avatarUrl: result.data.avatarUrl,
         phoneNumber: result.data.phoneNumber,
       });
-      
+
       setMessage(
         uploadedAvatar
           ? "Foto profil dan perubahan data berhasil disimpan."

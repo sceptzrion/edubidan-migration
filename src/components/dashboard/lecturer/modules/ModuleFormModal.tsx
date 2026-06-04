@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Save, X } from "lucide-react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  BookOpen,
+  Image as ImageIcon,
+  Loader2,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { createPortal } from "react-dom";
 
 import type {
@@ -15,8 +22,18 @@ interface ModuleFormModalProps {
   isOpen: boolean;
   editing: LecturerModule | null;
   onClose: () => void;
-  onSave: (form: LecturerModuleFormValue) => void;
+  onSave: (form: LecturerModuleFormValue) => void | Promise<void>;
 }
+
+type MediaUploadApiResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    url: string;
+    secureUrl: string;
+    publicId: string;
+  } | null;
+};
 
 const statusOptions: LecturerModuleStatus[] = ["Draft", "Publik"];
 
@@ -25,12 +42,16 @@ function getInitialForm(editing: LecturerModule | null): LecturerModuleFormValue
     return {
       title: editing.title,
       status: editing.status,
+      bannerUrl: editing.image ?? null,
+      bannerPublicId: editing.bannerPublicId ?? null,
     };
   }
 
   return {
     title: "",
     status: "Draft",
+    bannerUrl: null,
+    bannerPublicId: null,
   };
 }
 
@@ -41,11 +62,25 @@ export function ModuleFormModal({
   onSave,
 }: ModuleFormModalProps) {
   const mounted = useIsClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initialForm = useMemo(() => getInitialForm(editing), [editing]);
 
   const [error, setError] = useState("");
+  const [bannerError, setBannerError] = useState("");
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [form, setForm] = useState<LecturerModuleFormValue>(initialForm);
+  const [selectedBannerFile, setSelectedBannerFile] = useState<File | null>(
+    null
+  );
+  const [previewBannerUrl, setPreviewBannerUrl] = useState<string | null>(null);
+  const [shouldRemoveBanner, setShouldRemoveBanner] = useState(false);
+
+  const bannerPreview = shouldRemoveBanner
+    ? null
+    : previewBannerUrl ?? form.bannerUrl ?? null;
+
+  const canRemoveBanner = Boolean(bannerPreview);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -58,16 +93,132 @@ export function ModuleFormModal({
     };
   }, [isOpen]);
 
-  const handleSave = () => {
+  useEffect(() => {
+    setForm(initialForm);
+    setSelectedBannerFile(null);
+    setPreviewBannerUrl(null);
+    setShouldRemoveBanner(false);
+    setError("");
+    setBannerError("");
+  }, [initialForm]);
+
+  useEffect(() => {
+    return () => {
+      if (previewBannerUrl) {
+        URL.revokeObjectURL(previewBannerUrl);
+      }
+    };
+  }, [previewBannerUrl]);
+
+  const handleBannerClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleBannerChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setBannerError("Format banner tidak didukung. Gunakan JPG, PNG, atau WEBP.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setBannerError("Ukuran banner terlalu besar. Maksimal 5MB.");
+      event.target.value = "";
+      return;
+    }
+
+    if (previewBannerUrl) {
+      URL.revokeObjectURL(previewBannerUrl);
+    }
+
+    setSelectedBannerFile(file);
+    setPreviewBannerUrl(URL.createObjectURL(file));
+    setShouldRemoveBanner(false);
+    setBannerError("");
+    event.target.value = "";
+  };
+
+  const handleRemoveBanner = () => {
+    if (previewBannerUrl) {
+      URL.revokeObjectURL(previewBannerUrl);
+    }
+
+    setSelectedBannerFile(null);
+    setPreviewBannerUrl(null);
+    setShouldRemoveBanner(true);
+    setBannerError("");
+  };
+
+  const uploadBannerIfNeeded = async () => {
+    if (!selectedBannerFile) return undefined;
+
+    const formData = new FormData();
+
+    formData.append("purpose", "module-banner");
+    formData.append("file", selectedBannerFile);
+
+    const response = await fetch("/api/media/upload", {
+      method: "POST",
+      credentials: "same-origin",
+      body: formData,
+    });
+
+    const result = (await response.json()) as MediaUploadApiResponse;
+
+    if (!response.ok || !result.success || !result.data) {
+      throw new Error(result.message || "Upload banner modul gagal.");
+    }
+
+    return {
+      bannerUrl: result.data.secureUrl || result.data.url,
+      bannerPublicId: result.data.publicId,
+    };
+  };
+
+  const handleSave = async () => {
     if (!form.title.trim()) {
       setError("Judul modul tidak boleh kosong.");
       return;
     }
 
-    onSave({
-      ...form,
-      title: form.title.trim(),
-    });
+    setError("");
+    setBannerError("");
+    setIsUploadingBanner(true);
+
+    try {
+      const uploadedBanner = await uploadBannerIfNeeded();
+
+      await onSave({
+        ...form,
+        title: form.title.trim(),
+        ...(uploadedBanner
+          ? {
+              bannerUrl: uploadedBanner.bannerUrl,
+              bannerPublicId: uploadedBanner.bannerPublicId,
+            }
+          : shouldRemoveBanner
+            ? {
+                bannerUrl: null,
+                bannerPublicId: null,
+                shouldRemoveBanner: true,
+              }
+            : {}),
+      });
+    } catch (error) {
+      console.error("Save module banner error:", error);
+
+      setBannerError(
+        error instanceof Error
+          ? error.message
+          : "Gagal menyimpan banner modul. Silakan coba lagi."
+      );
+    } finally {
+      setIsUploadingBanner(false);
+    }
   };
 
   if (!isOpen || !mounted) return null;
@@ -110,6 +261,78 @@ export function ModuleFormModal({
 
         <div className="p-5 sm:p-6 space-y-5 sm:space-y-6 overflow-y-auto scrollbar-thin bg-muted/20">
           <div>
+            <label className="text-xs sm:text-sm mb-2.5 block font-bold text-foreground">
+              Banner Modul
+            </label>
+
+            <button
+              type="button"
+              onClick={handleBannerClick}
+              className="group relative w-full h-40 overflow-hidden rounded-2xl border border-dashed border-border bg-card hover:bg-muted transition-colors"
+            >
+              {bannerPreview ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={bannerPreview}
+                    alt="Preview banner modul"
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-extrabold">
+                    Ganti Banner
+                  </div>
+                </>
+              ) : (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <ImageIcon size={26} />
+                  <span className="text-xs font-extrabold">
+                    Pilih Banner Modul
+                  </span>
+                  <span className="text-[10px] font-medium">
+                    JPG, PNG, atau WEBP · Maks. 5MB
+                  </span>
+                </div>
+              )}
+            </button>
+
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              ref={fileInputRef}
+              className="hidden"
+              onChange={handleBannerChange}
+            />
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleBannerClick}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-extrabold hover:bg-primary/90 transition-colors"
+              >
+                <ImageIcon size={14} />
+                {bannerPreview ? "Ganti Banner" : "Pilih Banner"}
+              </button>
+
+              {canRemoveBanner && (
+                <button
+                  type="button"
+                  onClick={handleRemoveBanner}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-red-500 text-xs font-extrabold hover:bg-red-500/10 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Hapus Banner
+                </button>
+              )}
+            </div>
+
+            {bannerError && (
+              <p className="text-[11px] sm:text-xs font-bold text-red-500 mt-2">
+                {bannerError}
+              </p>
+            )}
+          </div>
+
+          <div>
             <label
               htmlFor="moduleTitle"
               className="text-xs sm:text-sm mb-2.5 block font-bold text-foreground"
@@ -128,7 +351,7 @@ export function ModuleFormModal({
                 setError("");
               }}
               placeholder="Contoh: ANC Terpadu Trimester 1"
-              className="w-full px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-card border border-border text-sm text-foreground font-bold outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-sm"
+              className="w-full px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-card border border-border text-sm text-foreground font-bold outline-none focus:border-primary focus:ring-1 focus-primary transition-all shadow-sm"
             />
 
             {error && (
@@ -180,7 +403,8 @@ export function ModuleFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-border text-xs sm:text-sm font-bold text-foreground hover:bg-muted transition-colors"
+            disabled={isUploadingBanner}
+            className="flex-1 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-border text-xs sm:text-sm font-bold text-foreground hover:bg-muted transition-colors disabled:cursor-not-allowed disabled:opacity-70"
           >
             Batal
           </button>
@@ -188,10 +412,19 @@ export function ModuleFormModal({
           <button
             type="button"
             onClick={handleSave}
-            className="flex-1 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-primary text-primary-foreground text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5"
+            disabled={isUploadingBanner}
+            className="flex-1 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-primary text-primary-foreground text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
           >
-            <Save size={18} className="sm:w-5 sm:h-5" />
-            {editing ? "Simpan Perubahan" : "Simpan Modul"}
+            {isUploadingBanner ? (
+              <Loader2 size={18} className="animate-spin sm:w-5 sm:h-5" />
+            ) : (
+              <Save size={18} className="sm:w-5 sm:h-5" />
+            )}
+            {isUploadingBanner
+              ? "Menyimpan..."
+              : editing
+                ? "Simpan Perubahan"
+                : "Simpan Modul"}
           </button>
         </div>
       </div>

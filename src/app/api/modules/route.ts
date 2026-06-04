@@ -198,6 +198,7 @@ export async function POST(request: NextRequest) {
       title: body.title,
       description: body.description,
       bannerUrl: body.bannerUrl,
+      bannerPublicId: body.bannerPublicId,
       accessCode,
       estimatedMinutes: body.estimatedMinutes,
       objectives: body.objectives,

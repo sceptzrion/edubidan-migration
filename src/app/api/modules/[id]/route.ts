@@ -8,6 +8,7 @@ import {
 } from "@/services/module.service";
 import { getCurrentSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { deleteCloudinaryAsset } from "@/services/media/cloudinary.service";
 
 export const dynamic = "force-dynamic";
 
@@ -103,8 +104,19 @@ async function getOwnedModule(moduleId: number, dosenProfileId: number) {
     },
     select: {
       id: true,
+      bannerPublicId: true,
     },
   });
+}
+
+async function deleteModuleBannerIfNeeded(publicId: string | null) {
+  if (!publicId) return;
+
+  try {
+    await deleteCloudinaryAsset(publicId, "image");
+  } catch (error) {
+    console.error("Failed to delete module banner from Cloudinary:", error);
+  }
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -230,6 +242,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       title: body.title,
       description: body.description,
       bannerUrl: body.bannerUrl,
+      bannerPublicId: body.bannerPublicId,
       accessCode: body.accessCode,
       estimatedMinutes: body.estimatedMinutes,
       objectives: body.objectives,
@@ -348,6 +361,8 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
         id: moduleId,
       },
     });
+
+    await deleteModuleBannerIfNeeded(ownedModule.bannerPublicId);
 
     return NextResponse.json({
       success: true,
